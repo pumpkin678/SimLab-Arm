@@ -2,8 +2,10 @@
 
 namespace simlab {
 
-Application::Application(const std::string &model_path, const ReferenceCase *reference_case)
-    : simulation_(model_path),
+Application::Application(
+    const std::string &model_path, const ReferenceCase *reference_case,
+    const std::optional<TraceOptions> &trace)
+    : simulation_(model_path, trace),
       reference_(simulation_, reference_case),
       renderer_(simulation_.model()),
       ui_(window_),
@@ -57,6 +59,7 @@ void Application::run() {
         ui_.draw();
         window_.swapBuffers();
     }
+    simulation_.flushTrace();
 }
 
 void Application::advanceSimulation(bool reset_timing) {

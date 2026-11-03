@@ -55,14 +55,13 @@ JointCommand ReferenceRun::command() const {
 bool ReferenceRun::step() {
     if (completed()) return false;
     simulation_.step(command());
-    ++steps_;
+    if (completed()) simulation_.flushTrace();
     return true;
 }
 
 void ReferenceRun::reset() {
     simulation_.reset();
     manual_target_ = {};
-    steps_ = 0;
 }
 
 } // namespace simlab

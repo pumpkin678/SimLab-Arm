@@ -14,7 +14,9 @@ namespace simlab {
 
 class Application {
 public:
-    explicit Application(const std::string &model_path, const ReferenceCase *reference_case = nullptr);
+    explicit Application(
+        const std::string &model_path, const ReferenceCase *reference_case = nullptr,
+        const std::optional<TraceOptions> &trace = std::nullopt);
     void run();
 
 private:

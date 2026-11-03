@@ -24,7 +24,7 @@ add_subdirectory(third_party/mujoco)
 find_package(OpenGL REQUIRED)
 
 add_library(simlab_simulation STATIC
-    simulation/simulation.cpp simulation/adapter.cpp simulation/arm/arm.cpp)
+    simulation/simulation.cpp simulation/adapter.cpp simulation/trace.cpp simulation/arm/arm.cpp)
 target_include_directories(simlab_simulation PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(simlab_simulation PUBLIC mujoco::mujoco)
 
@@ -46,3 +46,19 @@ add_custom_command(TARGET simlab_arm POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
         "$<TARGET_FILE:mujoco::mujoco>" "$<TARGET_FILE_DIR:simlab_arm>"
     VERBATIM)
+
+option(BUILD_TESTING "Build the trace contract check" ON)
+if(BUILD_TESTING)
+    enable_testing()
+    add_executable(simlab_trace_test
+        tests/trace_test.cpp app/options.cpp app/reference/reference.cpp)
+    target_link_libraries(simlab_trace_test PRIVATE simlab_simulation)
+    target_compile_options(simlab_trace_test PRIVATE /W4 /permissive- /utf-8)
+    add_custom_command(TARGET simlab_trace_test POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "$<TARGET_FILE:mujoco::mujoco>" "$<TARGET_FILE_DIR:simlab_trace_test>"
+        VERBATIM)
+    add_test(NAME trace COMMAND simlab_trace_test
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets/description/scene.xml"
+        "${CMAKE_CURRENT_BINARY_DIR}/test-output/trace")
+endif()

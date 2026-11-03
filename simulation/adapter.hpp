@@ -20,6 +20,7 @@ using JointPositionLimits = std::array<JointPositionLimit, 6>;
 class ArmAdapter {
 public:
     explicit ArmAdapter(const mjModel &model);
+    void validate(const mjData &data) const;
     JointFeedback readFeedback(const mjData &data) const;
     ArmContext readContext(const mjData &data) const;
     void writeTorques(mjData &data, const JointTorques &torques) const;

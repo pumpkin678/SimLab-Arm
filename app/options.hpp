@@ -10,6 +10,7 @@ namespace simlab {
 struct Options {
     std::string model{"assets/description/scene.xml"};
     const ReferenceCase *reference_case{};
+    std::optional<TraceOptions> trace;
     bool headless{};
     bool help{};
 };

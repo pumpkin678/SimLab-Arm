@@ -24,15 +24,14 @@ public:
     void reset();
     JointCommand &manualTarget() noexcept { return manual_target_; }
     const ReferenceCase *caseDefinition() const noexcept { return reference_case_; }
-    bool completed() const noexcept { return reference_case_ && steps_ >= total_steps_; }
-    std::size_t stepCount() const noexcept { return steps_; }
+    bool completed() const noexcept { return reference_case_ && stepCount() >= total_steps_; }
+    std::uint64_t stepCount() const noexcept { return simulation_.stepCount(); }
     std::size_t totalSteps() const noexcept { return total_steps_; }
 
 private:
     Simulation &simulation_;
     const ReferenceCase *reference_case_{};
     JointCommand manual_target_{};
-    std::size_t steps_{};
     std::size_t total_steps_{};
 };
 
