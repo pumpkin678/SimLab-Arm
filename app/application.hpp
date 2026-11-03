@@ -4,7 +4,8 @@
 #include "core/window.hpp"
 #include "core/renderer.hpp"
 #include "simulation/simulation.hpp"
-#include "ui.hpp"
+#include "app/reference/reference.hpp"
+#include "app/ui/ui.hpp"
 
 #include <chrono>
 #include <string>
@@ -13,7 +14,7 @@ namespace simlab {
 
 class Application {
 public:
-    explicit Application(const std::string &model_path);
+    explicit Application(const std::string &model_path, const ReferenceCase *reference_case = nullptr);
     void run();
 
 private:
@@ -23,6 +24,7 @@ private:
 
     // Keep the model and OpenGL context alive until UI and renderer cleanup finishes.
     Simulation simulation_;
+    ReferenceRun reference_;
     Window window_;
     Renderer renderer_;
     Ui ui_;

@@ -23,6 +23,10 @@ ArmAdapter::ArmAdapter(const mjModel &model)
         position_addresses_[index] = model.jnt_qposadr[joint];
         velocity_addresses_[index] = model.jnt_dofadr[joint];
         actuator_ids_[index] = actuator;
+        position_limits_[index] = {
+            model.jnt_limited[joint] != 0,
+            static_cast<float>(model.jnt_range[2 * joint]),
+            static_cast<float>(model.jnt_range[2 * joint + 1])};
     }
 }
 

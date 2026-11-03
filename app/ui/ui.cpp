@@ -1,4 +1,4 @@
-#include "ui.hpp"
+#include "app/ui/ui.hpp"
 
 #include <GLFW/glfw3.h>
 #include <imgui.h>
@@ -9,6 +9,7 @@
 #include <cmath>
 #include <numbers>
 #include <stdexcept>
+#include <string>
 
 namespace simlab {
 
@@ -69,7 +70,7 @@ void Ui::beginFrame() {
     scene_size_ = {framebuffer_size_.width - sidebar_pixels, framebuffer_size_.height};
 }
 
-UiActions Ui::buildControls(bool paused) {
+UiActions Ui::buildControls(bool paused, ReferenceRun &reference, const JointPositionLimits &limits) {
     UiActions actions;
     if (scene_size_.width == framebuffer_size_.width) return actions;
     const auto &io = ImGui::GetIO();
@@ -80,15 +81,49 @@ UiActions Ui::buildControls(bool paused) {
         ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
         ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus);
     ImGui::SeparatorText("Run");
+    ImGui::BeginDisabled(reference.completed());
     actions.toggle_pause = ImGui::Button(paused ? "Run (Space)" : "Pause (Space)");
+    ImGui::EndDisabled();
     ImGui::SameLine();
     actions.reset = ImGui::Button("Reset (R)");
+    if (!reference.caseDefinition()) {
+        ImGui::SeparatorText("Reference [deg]");
+        auto &target = reference.manualTarget();
+        for (std::size_t index = 0; index < target.position.size(); ++index) {
+            const auto label = "J" + std::to_string(index + 1);
+            const auto &limit = limits[index];
+            if (limit.limited) {
+                ImGui::SliderAngle(label.c_str(), &target.position[index],
+                    static_cast<float>(limit.lower * kRadiansToDegrees),
+                    static_cast<float>(limit.upper * kRadiansToDegrees), "%.3f deg",
+                    ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_NoRoundToFormat);
+            } else {
+                float degrees = static_cast<float>(target.position[index] * kRadiansToDegrees);
+                if (ImGui::InputFloat(label.c_str(), &degrees, 0, 0, "%.3f")) {
+                    target.position[index] = static_cast<float>(degrees / kRadiansToDegrees);
+                }
+            }
+        }
+        ImGui::TextDisabled("Ctrl+click a slider to enter an angle.");
+    }
     // Keep the panel open so readouts can be drawn after this frame's physics steps.
     return actions;
 }
 
-bool Ui::buildReadouts(const JointFeedback &feedback, const JointTorques &torques, float time, bool paused) {
+bool Ui::buildReadouts(
+    const JointFeedback &feedback, const JointTorques &torques, float time, bool paused,
+    const ReferenceRun &reference) {
     if (scene_size_.width == framebuffer_size_.width) return false;
+    if (const auto *reference_case = reference.caseDefinition()) {
+        ImGui::SeparatorText("Reference [deg]");
+        ImGui::Text("Case: %.*s", static_cast<int>(reference_case->name.size()), reference_case->name.data());
+        ImGui::Text("Duration: %.3f s", reference_case->duration);
+        if (reference.completed()) ImGui::Text("Completed - Reset to run again");
+        const auto target = reference.command();
+        for (std::size_t index = 0; index < target.position.size(); ++index) {
+            ImGui::Text("J%d: % .3f", static_cast<int>(index + 1), target.position[index] * kRadiansToDegrees);
+        }
+    }
     ImGui::Text("State: %s", paused ? "Paused" : "Running");
     ImGui::Text("Time: %.3f s", time);
 

@@ -2,7 +2,10 @@
 param(
     [ValidateSet('Release', 'Debug')]
     [string]$Configuration = 'Release',
-    [string]$Model = 'assets/description/scene.xml'
+    [string]$Model = 'assets/description/scene.xml',
+    [ValidateNotNullOrEmpty()]
+    [string]$Case,
+    [switch]$Headless
 )
 
 $ErrorActionPreference = 'Stop'
@@ -18,7 +21,10 @@ $modelPath = if ([IO.Path]::IsPathRooted($Model)) {
 }
 Push-Location -LiteralPath $repoRoot
 try {
-    & $executable $modelPath
+    $runArguments = @($modelPath)
+    if ($PSBoundParameters.ContainsKey('Case')) { $runArguments += @('--case', $Case) }
+    if ($Headless) { $runArguments += '--headless' }
+    & $executable @runArguments
     if ($LASTEXITCODE -ne 0) { throw "simlab_arm failed ($LASTEXITCODE)." }
 } finally {
     Pop-Location

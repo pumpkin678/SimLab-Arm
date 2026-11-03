@@ -2,10 +2,12 @@
 
 namespace simlab {
 
-Application::Application(const std::string &model_path)
+Application::Application(const std::string &model_path, const ReferenceCase *reference_case)
     : simulation_(model_path),
+      reference_(simulation_, reference_case),
       renderer_(simulation_.model()),
-      ui_(window_) {}
+      ui_(window_),
+      paused_(reference_case == nullptr) {}
 
 void Application::run() {
     previous_ = Clock::now();
@@ -21,7 +23,7 @@ void Application::run() {
         }
 
         ui_.beginFrame();
-        auto actions = ui_.buildControls(paused_);
+        auto actions = ui_.buildControls(paused_, reference_, simulation_.positionLimits());
         for (const auto &event : events) {
             if (ui_.captures(event)) continue;
             switch (event.type) {
@@ -40,14 +42,15 @@ void Application::run() {
             }
         }
         if (actions.reset) {
-            simulation_.reset();
+            reference_.reset();
             paused_ = true;
-        } else if (actions.toggle_pause) {
+        } else if (actions.toggle_pause && !reference_.completed()) {
             paused_ = !paused_;
         }
         advanceSimulation(actions.reset || actions.toggle_pause);
 
-        if (ui_.buildReadouts(simulation_.readFeedback(), simulation_.lastTorques(), simulation_.time(), paused_)) {
+        if (ui_.buildReadouts(
+            simulation_.readFeedback(), simulation_.lastTorques(), simulation_.time(), paused_, reference_)) {
             renderer_.resetCamera();
         }
         renderer_.draw(simulation_.data(), ui_.sceneSize(), ui_.showFrames());
@@ -66,8 +69,13 @@ void Application::advanceSimulation(bool reset_timing) {
 
     const double timestep = simulation_.model().opt.timestep;
     while (accumulated_ >= timestep) {
-        simulation_.step(JointCommand{});
+        reference_.step();
         accumulated_ -= timestep;
+        if (reference_.completed()) {
+            paused_ = true;
+            accumulated_ = 0;
+            break;
+        }
     }
 }
 

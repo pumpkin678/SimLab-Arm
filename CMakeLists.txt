@@ -29,7 +29,7 @@ target_include_directories(simlab_simulation PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}
 target_link_libraries(simlab_simulation PUBLIC mujoco::mujoco)
 
 add_library(simlab_viewer STATIC
-    core/window.cpp core/renderer.cpp app/ui.cpp
+    core/window.cpp core/renderer.cpp app/ui/ui.cpp
     third_party/imgui/imgui.cpp third_party/imgui/imgui_draw.cpp
     third_party/imgui/imgui_tables.cpp third_party/imgui/imgui_widgets.cpp
     third_party/imgui/backends/imgui_impl_glfw.cpp
@@ -37,7 +37,7 @@ add_library(simlab_viewer STATIC
 target_include_directories(simlab_viewer PUBLIC third_party/imgui)
 target_link_libraries(simlab_viewer PUBLIC simlab_simulation glfw OpenGL::GL)
 
-add_executable(simlab_arm app/main.cpp app/application.cpp)
+add_executable(simlab_arm app/main.cpp app/application.cpp app/options.cpp app/reference/reference.cpp)
 target_link_libraries(simlab_arm PRIVATE simlab_viewer)
 foreach(target IN ITEMS simlab_simulation simlab_viewer simlab_arm)
     target_compile_options(${target} PRIVATE /W4 /permissive- /utf-8)

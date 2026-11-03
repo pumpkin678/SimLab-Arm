@@ -20,6 +20,7 @@ public:
     void reset();
     const CycleResult &result() const noexcept { return result_; }
     float time() const noexcept { return adapter_->readContext(*data_).time; }
+    const JointPositionLimits &positionLimits() const noexcept { return adapter_->positionLimits(); }
     // Applied motor torques after the model's output limits.
     const JointTorques &lastTorques() const noexcept { return last_torques_; }
     const mjModel &model() const noexcept { return *model_; }
