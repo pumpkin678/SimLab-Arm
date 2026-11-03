@@ -1,0 +1,14 @@
+/.vscode/
+/references/
+/temp/
+/MUJOCO_LOG.TXT
+
+*.zip
+/build/
+
+/third_party/mujoco/sdk/
+/imgui.ini
+
+__pycache__/
+.venv/
+*.py[cod]

@@ -1,0 +1,19 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mujoco model="SimLab-Arm scene">
+  <include file="arm.xml" />
+  <visual>
+    <global offwidth="1600" offheight="1100" azimuth="315" elevation="-25" />
+    <headlight ambient="0.5 0.5 0.5" diffuse="0.6 0.6 0.6" specular="0.1 0.1 0.1" />
+    <scale framelength="0.08" framewidth="0.003" />
+  </visual>
+  <asset>
+    <texture name="background" type="skybox" builtin="gradient" rgb1="0.65 0.75 0.85" rgb2="0.95 0.97 0.99" width="256" height="1536" />
+    <texture name="ground_grid" type="2d" builtin="flat" mark="edge" rgb1="0.82 0.84 0.86" markrgb="0.42 0.46 0.50" width="128" height="128" />
+    <material name="ground_grid" texture="ground_grid" texrepeat="10 10" texuniform="true" reflectance="0" />
+  </asset>
+  <worldbody>
+    <geom name="ground" type="plane" pos="0 0 -0.0030000000949949026" size="3 3 0.05" material="ground_grid" rgba="1 1 1 1" contype="1" conaffinity="2" group="0" />
+    <light pos="0 1 2" dir="0 0 -1" directional="true" diffuse="0.35 0.35 0.35" castshadow="false" />
+    <light pos="0 -1 1" dir="0 1 -1" directional="true" diffuse="0.25 0.25 0.25" castshadow="false" />
+  </worldbody>
+</mujoco>

@@ -1,0 +1,94 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mujoco model="SimLab-Arm">
+  <!-- Maintained native MJCF. CAD import is explicit, not a build dependency. -->
+  <compiler angle="radian" meshdir="../meshes/mjcf" inertiafromgeom="false" fusestatic="false" autolimits="false" />
+  <option timestep="0.001" integrator="implicitfast" gravity="0 0 -9.81" />
+  <default>
+    <joint type="hinge" limited="true" actuatorfrclimited="false" damping="0" frictionloss="0" armature="0" />
+    <geom density="0" contype="0" conaffinity="0" />
+    <site size="0.003" group="3" rgba="0.9 0.9 0.9 1" />
+  </default>
+  <asset>
+    <mesh name="visual_base_link" file="visual/base_link.stl" />
+    <mesh name="collision_base_link" file="collision/base_link.stl" />
+    <mesh name="visual_link1" file="visual/link1.stl" />
+    <mesh name="collision_link1" file="collision/link1.stl" />
+    <mesh name="visual_link2" file="visual/link2.stl" />
+    <mesh name="collision_link2" file="collision/link2.stl" />
+    <mesh name="visual_link3" file="visual/link3.stl" />
+    <mesh name="collision_link3" file="collision/link3.stl" />
+    <mesh name="visual_link4" file="visual/link4.stl" />
+    <mesh name="collision_link4" file="collision/link4.stl" />
+    <mesh name="visual_link5" file="visual/link5.stl" />
+    <mesh name="collision_link5" file="collision/link5.stl" />
+    <mesh name="visual_link6" file="visual/link6.stl" />
+    <mesh name="collision_link6" file="collision/link6.stl" />
+  </asset>
+  <worldbody>
+    <body name="base_link" pos="0 0 0">
+      <site name="base_frame" />
+      <inertial pos="-4.5881569562944202e-05 -0.0632969299929214 0.0217208014803871" mass="0.49564246580163202" fullinertia="0.00076945304745292898 0.00026920330011525597 0.00076535820679501801 -4.0487987038024798e-07 7.3695717083312504e-07 0.00014923698437500601" />
+      <geom name="visual_base_link" type="mesh" mesh="visual_base_link" group="1" rgba="0.34 0.39 0.45 1" />
+      <geom name="collision_base_link" type="mesh" mesh="collision_base_link" group="3" contype="2" conaffinity="3" rgba="0.8 0.2 0.2 0.3" />
+      <body name="link1" pos="0 0 0">
+        <joint name="joint1" axis="0 0 1" pos="0 0 0" ref="0" range="-3.665191429188092 0.5235987755982988" />
+        <site name="joint1_frame" />
+        <inertial pos="0 0.0071705221739313697 0.018775516160635101" mass="0.23260476833558799" fullinertia="0.00018054445556591299 0.00011583646768049501 0.000183295474603393 0 0 -4.3100648737606099e-05" />
+        <geom name="visual_link1" type="mesh" mesh="visual_link1" group="1" rgba="0.20 0.48 0.85 1" />
+        <geom name="collision_link1" type="mesh" mesh="collision_link1" group="3" contype="2" conaffinity="3" rgba="0.8 0.2 0.2 0.3" />
+        <body name="link2" pos="0 0 0.059999999999999998">
+          <joint name="joint2" axis="0 1 0" pos="0 0 0" ref="0" range="0 2.6179938779914944" />
+          <site name="joint2_frame" />
+          <inertial pos="-0.100127711801693 -0.0029571495978784699 6.167817814221783e-05" mass="1.8566475675480301" fullinertia="0.0011529634102645299 0.033190567621054198 0.032971431328113601 -0.00081803937882759701 3.4862567641134054e-05 2.2532802745090138e-06" />
+          <geom name="visual_link2" type="mesh" mesh="visual_link2" group="1" rgba="0.91 0.48 0.18 1" />
+          <geom name="collision_link2" type="mesh" mesh="collision_link2" group="3" contype="2" conaffinity="3" rgba="0.8 0.2 0.2 0.3" />
+          <body name="link3" pos="-0.42900000000000871 0 0.0060000000000023368">
+            <joint name="joint3" axis="0 1 0" pos="0 0 0" ref="0" range="-2.6179938779914944 0" />
+            <site name="joint3_frame" />
+            <inertial pos="-0.011817235258848801 0.0083537556927378888 0.031868445920946002" mass="0.61756888688851297" fullinertia="0.000706454619992552 0.00059239305435247096 0.00056659698587900001 0.00010182455147044299 -5.679740420079409e-05 8.3975799391104901e-05" />
+            <geom name="visual_link3" type="mesh" mesh="visual_link3" group="1" rgba="0.25 0.68 0.40 1" />
+            <geom name="collision_link3" type="mesh" mesh="collision_link3" group="3" contype="2" conaffinity="3" rgba="0.8 0.2 0.2 0.3" />
+            <body name="link4" pos="0 0 0.064999999999997754">
+              <joint name="joint4" axis="1 0 0" pos="0 0 0" ref="0" range="-3.141592653589793 3.141592653589793" />
+              <site name="joint4_frame" />
+              <inertial pos="0.13692030256968801 0.027042716902336093 -4.2430899346313843e-05" mass="0.54745830840916898" fullinertia="0.00035951993096471389 0.0060355586106393203 0.0061086881087473498 -0.00061511332352733766 1.2120172382696248e-07 1.9726401020460159e-06" />
+              <geom name="visual_link4" type="mesh" mesh="visual_link4" group="1" rgba="0.15 0.65 0.75 1" />
+              <geom name="collision_link4" type="mesh" mesh="collision_link4" group="3" contype="2" conaffinity="3" rgba="0.8 0.2 0.2 0.3" />
+              <body name="link5" pos="0.31575789999999992 0 0">
+                <joint name="joint5" axis="0 1 0" pos="0 0 0" ref="0" range="-1.5707963267948966 1.5707963267948966" />
+                <site name="joint5_frame" />
+                <inertial pos="-0.0193010491946475 -0.013574676711816801 0.00095215016335796455" mass="0.63340357035029005" fullinertia="0.00051555745798168896 0.00080968620350667299 0.00103163690944452 -1.07892094716942e-05 2.3776994547906181e-06 1.5636833185955658e-05" />
+                <geom name="visual_link5" type="mesh" mesh="visual_link5" group="1" rgba="0.60 0.38 0.78 1" />
+                <geom name="collision_link5" type="mesh" mesh="collision_link5" group="3" contype="2" conaffinity="3" rgba="0.8 0.2 0.2 0.3" />
+                <body name="link6" pos="0 -0.020226565847904176 0">
+                  <joint name="joint6" axis="1 0 0" pos="0 0 0" ref="0" range="-3.141592653589793 3.141592653589793" />
+                  <site name="joint6_frame" />
+                  <inertial pos="0.046032566756576403 -6.1277458729739154e-08 1.0411173600845198e-07" mass="0.237312575581582" fullinertia="0.00023000849019182699 0.000164030982708703 0.00028965461293284898 -3.2294259967928646e-11 1.0330417652779677e-09 -1.3302866565290322e-05" />
+                  <geom name="visual_link6" type="mesh" mesh="visual_link6" group="1" rgba="0.84 0.28 0.32 1" />
+                  <geom name="collision_link6" type="mesh" mesh="collision_link6" group="3" contype="2" conaffinity="3" rgba="0.8 0.2 0.2 0.3" />
+                  <site name="tool0" />
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+  <contact>
+    <exclude body1="base_link" body2="link1" />
+    <exclude body1="base_link" body2="link2" />
+  </contact>
+  <actuator>
+    <!-- Ideal joint torque [N m]. -->
+    <motor name="motor1" joint="joint1" gear="1" ctrllimited="false" forcelimited="true" forcerange="-20 20" />
+    <motor name="motor2" joint="joint2" gear="1" ctrllimited="false" forcelimited="true" forcerange="-80 80" />
+    <motor name="motor3" joint="joint3" gear="1" ctrllimited="false" forcelimited="true" forcerange="-20 20" />
+    <motor name="motor4" joint="joint4" gear="1" ctrllimited="false" forcelimited="true" forcerange="-10 10" />
+    <motor name="motor5" joint="joint5" gear="1" ctrllimited="false" forcelimited="true" forcerange="-10 10" />
+    <motor name="motor6" joint="joint6" gear="1" ctrllimited="false" forcelimited="true" forcerange="-2 2" />
+  </actuator>
+  <keyframe>
+    <key name="zero" qpos="0 0 0 0 0 0" ctrl="0 0 0 0 0 0" />
+  </keyframe>
+</mujoco>

@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  robot: arm_snapshot_preview | consumer: generic URDF geometry/kinematics review
+  status: PREVIEW, NOT CONTROL-READY OR DYNAMICS-READY
+  units: meters, kilograms, seconds, radians; all STL coordinates are meters
+  source: isolated CAD copy in ../cad; original component transforms and six
+    top-level RefAxis features in ../planning/assembly_snapshot.json
+  zero pose: original snapshot explicitly confirmed by the user; do NOT replace
+    it with the re-solved CAD pose, which shifts the wrist by about 20.23 mm
+  root: base_link at original CAD origin; robot +X=-CAD Z, +Y=-CAD X, +Z=CAD Y
+    This is a documented coordinate convention, not a surveyed mounting datum.
+  link frames: link1 through link6 coincide with joint1 through joint6 at zero.
+    Each origin is the closest point on its frozen CAD axis to the previous
+    frame origin; these mathematical origins are not claimed flange centers.
+    Frame Z follows the CAD axis endpoint order; X projects robot forward onto
+    its normal plane, falling back to robot left; Y completes the right-hand frame.
+  positive motion: right-hand rotation about each local +Z; CAD endpoint order
+    is provisional and has NOT been checked against motor/encoder conventions.
+  meshes: ../meshes/urdf/visual and ../meshes/urdf/collision; geometry in owning link frames,
+    identity geometry origins, explicit scale 1 1 1; colors are review labels.
+  membership: ../derived/link_membership.json; 180 displayed part instances,
+    two originally hidden instances retained only in the raw geometry cache,
+    12 suppressed instances excluded. Hidden solid/surface helper bodies are
+    filtered using native body visibility. Every active instance is accounted for.
+  boundary assumptions: structural subassemblies seed the links; J5 inner shaft
+    and driven pulley are assigned to link5, J6 large output pulley to link6,
+    and the loose screw to link3 using recorded mate evidence. Physical boundary
+    and motion review remains required; internal transmission motion is simplified.
+  inertials: populated for all seven physical links from native SolidWorks
+    IMassProperty2 effective link selections after native deletion/keep-body
+    removal of hidden spherical bodies 旋转1/旋转2/旋转3. Properties use
+    IncludeHiddenBodiesOrComponents=false, matching the exported visible-body
+    policy; assembly mass overrides are retained. Values are CAD-derived and
+    still require hardware material/encoder calibration before control use.
+  collision: compound component convex hulls, a conservative preview model;
+    platform-specific collision decomposition and interference review are pending.
+  limits: ALL lower/upper/velocity/effort values are deliberate zero placeholders.
+    They lock this preview to its zero pose, are NOT actual hardware parameters,
+    and MUST be replaced before controller use or full-range motion verification.
+    Do not infer unlimited rotation or change these joints to continuous.
+  tool0: frame-only identity alias of link6, not a calibrated TCP; no mass/geometry.
+  gripper: held at the original opening and merged into link6; no gripper joints.
+  canonical artifact: edit this XML directly; helper scripts compute and verify
+    geometry/frames only, and do not regenerate this URDF.
+-->
+<robot name="arm_snapshot_preview">
+  <link name="base_link">
+    <inertial>
+      <origin xyz="4.58815695629442e-05 0.0632969299929214 0.0217208014803871" rpy="0 0 0" />
+      <mass value="0.495642465801632" />
+      <inertia ixx="0.000769453047452929" ixy="-4.04879870380248e-07" ixz="-7.36957170833125e-07" iyy="0.000269203300115256" iyz="-0.000149236984375006" izz="0.000765358206795018" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/urdf/visual/base_link.stl" scale="1 1 1" />
+      </geometry>
+      <material name="base_gray">
+        <color rgba="0.34 0.39 0.45 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/urdf/collision/base_link.stl" scale="1 1 1" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="link1">
+    <inertial>
+      <origin xyz="2.11060675146673e-15 -0.00717052217393137 0.0187755161606351" rpy="0 0 0" />
+      <mass value="0.232604768335588" />
+      <inertia ixx="0.000180544455565913" ixy="1.36623596617838e-17" ixz="-1.01331067456776e-17" iyy="0.000115836467680495" iyz="4.31006487376061e-05" izz="0.000183295474603393" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/urdf/visual/link1.stl" scale="1 1 1" />
+      </geometry>
+      <material name="joint1_blue">
+        <color rgba="0.20 0.48 0.85 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/urdf/collision/link1.stl" scale="1 1 1" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="link2">
+    <inertial>
+      <origin xyz="0.100127711801693 6.1678178142218e-05 -0.00295714959787847" rpy="0 0 0" />
+      <mass value="1.85664756754803" />
+      <inertia ixx="0.00115296341026453" ixy="-3.48625676411341e-05" ixz="0.000818039378827597" iyy="0.0329714313281136" iyz="2.253280274509e-06" izz="0.0331905676210542" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/urdf/visual/link2.stl" scale="1 1 1" />
+      </geometry>
+      <material name="joint2_orange">
+        <color rgba="0.91 0.48 0.18 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/urdf/collision/link2.stl" scale="1 1 1" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="link3">
+    <inertial>
+      <origin xyz="0.0118172352588488 0.031868445920946 0.00835375569273789" rpy="0 0 0" />
+      <mass value="0.617568886888513" />
+      <inertia ixx="0.000706454619992552" ixy="5.67974042007941e-05" ixz="-0.000101824551470443" iyy="0.000566596985879" iyz="8.39757993911049e-05" izz="0.000592393054352471" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/urdf/visual/link3.stl" scale="1 1 1" />
+      </geometry>
+      <material name="joint3_green">
+        <color rgba="0.25 0.68 0.40 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/urdf/collision/link3.stl" scale="1 1 1" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="link4">
+    <inertial>
+      <origin xyz="-0.0270427169023361 -4.24308993463155e-05 -0.136920302569688" rpy="0 0 0" />
+      <mass value="0.547458308409169" />
+      <inertia ixx="0.00603555861063932" ixy="-1.97264010204602e-06" ixz="-0.000615113323527338" iyy="0.00610868810874735" iyz="-1.21201723827e-07" izz="0.000359519930964714" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/urdf/visual/link4.stl" scale="1 1 1" />
+      </geometry>
+      <material name="joint4_cyan">
+        <color rgba="0.15 0.65 0.75 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/urdf/collision/link4.stl" scale="1 1 1" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="link5">
+    <inertial>
+      <origin xyz="0.0193010491946475 -0.000952150163357967 0.0135746767118168" rpy="0 0 0" />
+      <mass value="0.63340357035029" />
+      <inertia ixx="0.000515557457981689" ixy="2.37769945479062e-06" ixz="-1.07892094716942e-05" iyy="0.00103163690944452" iyz="1.56368331859557e-05" izz="0.000809686203506673" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/urdf/visual/link5.stl" scale="1 1 1" />
+      </geometry>
+      <material name="joint5_purple">
+        <color rgba="0.60 0.38 0.78 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/urdf/collision/link5.stl" scale="1 1 1" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="link6">
+    <inertial>
+      <origin xyz="6.12774587064779e-08 -1.04111736008452e-07 0.0460325667565764" rpy="0 0 0" />
+      <mass value="0.237312575581582" />
+      <inertia ixx="0.000164030982708703" ixy="-1.33028665652903e-05" ixz="3.22942599345886e-11" iyy="0.000289654612932849" iyz="-1.03304176528469e-09" izz="0.000230008490191827" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/urdf/visual/link6.stl" scale="1 1 1" />
+      </geometry>
+      <material name="joint6_red">
+        <color rgba="0.84 0.28 0.32 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="../meshes/urdf/collision/link6.stl" scale="1 1 1" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="tool0" />
+  <joint name="joint1" type="revolute">
+    <parent link="base_link" />
+    <child link="link1" />
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+    <limit lower="0" upper="0" effort="0" velocity="0" />
+  </joint>
+  <joint name="joint2" type="revolute">
+    <parent link="link1" />
+    <child link="link2" />
+    <origin xyz="0 0 0.06" rpy="1.5707963267948966 0 0" />
+    <axis xyz="0 0 1" />
+    <limit lower="0" upper="0" effort="0" velocity="0" />
+  </joint>
+  <joint name="joint3" type="revolute">
+    <parent link="link2" />
+    <child link="link3" />
+    <origin xyz="0.4290000000000087 0.006000000000002337 0" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+    <limit lower="0" upper="0" effort="0" velocity="0" />
+  </joint>
+  <joint name="joint4" type="revolute">
+    <parent link="link3" />
+    <child link="link4" />
+    <origin xyz="0 0.06499999999999775 0" rpy="0 1.5707963267948966 0" />
+    <axis xyz="0 0 1" />
+    <limit lower="0" upper="0" effort="0" velocity="0" />
+  </joint>
+  <joint name="joint5" type="revolute">
+    <parent link="link4" />
+    <child link="link5" />
+    <origin xyz="0 0 -0.3157578999999999" rpy="3.141592653589793 -1.5707963267948966 0" />
+    <axis xyz="0 0 1" />
+    <limit lower="0" upper="0" effort="0" velocity="0" />
+  </joint>
+  <joint name="joint6" type="revolute">
+    <parent link="link5" />
+    <child link="link6" />
+    <origin xyz="0 0 0.020226565847904176" rpy="0 -1.5707963267948961 0" />
+    <axis xyz="0 0 1" />
+    <limit lower="0" upper="0" effort="0" velocity="0" />
+  </joint>
+  <joint name="tool0_fixed" type="fixed">
+    <parent link="link6" />
+    <child link="tool0" />
+    <origin xyz="0 0 0" rpy="0 0 0" />
+  </joint>
+</robot>
