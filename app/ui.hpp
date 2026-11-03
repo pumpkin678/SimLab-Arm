@@ -21,7 +21,7 @@ public:
     Ui &operator=(const Ui &) = delete;
     void beginFrame();
     UiActions buildControls(bool paused);
-    bool buildReadouts(const JointState &state, const JointTorques &torques, bool paused);
+    bool buildReadouts(const JointFeedback &feedback, const JointTorques &torques, float time, bool paused);
     void draw();
     WindowSize sceneSize() const noexcept { return scene_size_; }
     bool captures(const InputEvent &event) const;

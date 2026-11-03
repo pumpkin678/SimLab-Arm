@@ -87,10 +87,10 @@ UiActions Ui::buildControls(bool paused) {
     return actions;
 }
 
-bool Ui::buildReadouts(const JointState &state, const JointTorques &torques, bool paused) {
+bool Ui::buildReadouts(const JointFeedback &feedback, const JointTorques &torques, float time, bool paused) {
     if (scene_size_.width == framebuffer_size_.width) return false;
     ImGui::Text("State: %s", paused ? "Paused" : "Running");
-    ImGui::Text("Time: %.3f s", state.time);
+    ImGui::Text("Time: %.3f s", time);
 
     if (ImGui::CollapsingHeader("Joints", ImGuiTreeNodeFlags_DefaultOpen)) {
         constexpr auto kFlags = ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_RowBg |
@@ -101,14 +101,14 @@ bool Ui::buildReadouts(const JointState &state, const JointTorques &torques, boo
             ImGui::TableSetupColumn("Rate [deg/s]");
             ImGui::TableSetupColumn("Torque [Nm]");
             ImGui::TableHeadersRow();
-            for (std::size_t index = 0; index < state.position.size(); ++index) {
+            for (std::size_t index = 0; index < feedback.position.size(); ++index) {
                 ImGui::TableNextRow();
                 ImGui::TableSetColumnIndex(0);
                 ImGui::Text("J%d", static_cast<int>(index + 1));
                 ImGui::TableSetColumnIndex(1);
-                ImGui::Text("% .3f", state.position[index] * kRadiansToDegrees);
+                ImGui::Text("% .3f", feedback.position[index] * kRadiansToDegrees);
                 ImGui::TableSetColumnIndex(2);
-                ImGui::Text("% .3f", state.velocity[index] * kRadiansToDegrees);
+                ImGui::Text("% .3f", feedback.velocity[index] * kRadiansToDegrees);
                 ImGui::TableSetColumnIndex(3);
                 ImGui::Text("% .3f", torques[index]);
             }

@@ -5,12 +5,24 @@
 
 namespace simlab {
 
-using JointTorques = std::array<double, 6>; // N m, J1 through J6.
+using JointTorques = std::array<float, 6>; // N m, J1 through J6.
 
-struct JointState {
-    double time{}; // s
-    std::array<double, 6> position{}; // rad
-    std::array<double, 6> velocity{}; // rad/s
+struct JointFeedback {
+    std::array<float, 6> position{}; // rad, J1 through J6.
+    std::array<float, 6> velocity{}; // rad/s, J1 through J6.
+};
+
+struct JointCommand {
+    std::array<float, 6> position{}; // rad, J1 through J6.
+};
+
+struct ArmContext {
+    float time{}; // s
+    float dt{}; // s
+};
+
+struct CycleResult {
+    JointTorques torques{};
 };
 
 } // namespace simlab

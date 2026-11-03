@@ -5,9 +5,7 @@ namespace simlab {
 Application::Application(const std::string &model_path)
     : simulation_(model_path),
       renderer_(simulation_.model()),
-      ui_(window_) {
-    controller_.reset();
-}
+      ui_(window_) {}
 
 void Application::run() {
     previous_ = Clock::now();
@@ -43,14 +41,13 @@ void Application::run() {
         }
         if (actions.reset) {
             simulation_.reset();
-            controller_.reset();
             paused_ = true;
         } else if (actions.toggle_pause) {
             paused_ = !paused_;
         }
         advanceSimulation(actions.reset || actions.toggle_pause);
 
-        if (ui_.buildReadouts(simulation_.readState(), simulation_.lastTorques(), paused_)) {
+        if (ui_.buildReadouts(simulation_.readFeedback(), simulation_.lastTorques(), simulation_.time(), paused_)) {
             renderer_.resetCamera();
         }
         renderer_.draw(simulation_.data(), ui_.sceneSize(), ui_.showFrames());
@@ -69,7 +66,7 @@ void Application::advanceSimulation(bool reset_timing) {
 
     const double timestep = simulation_.model().opt.timestep;
     while (accumulated_ >= timestep) {
-        simulation_.step(controller_.update(simulation_.readState(), timestep));
+        simulation_.step(JointCommand{});
         accumulated_ -= timestep;
     }
 }

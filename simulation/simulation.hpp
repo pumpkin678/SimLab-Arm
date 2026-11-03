@@ -1,12 +1,13 @@
 #ifndef SIMLAB_SIMULATION_SIMULATION_HPP
 #define SIMLAB_SIMULATION_SIMULATION_HPP
 
-#include "arm/types.hpp"
+#include "adapter.hpp"
+#include "arm/arm.hpp"
 
 #include <mujoco/mujoco.h>
 
-#include <array>
 #include <memory>
+#include <optional>
 #include <string>
 
 namespace simlab {
@@ -14,9 +15,11 @@ namespace simlab {
 class Simulation {
 public:
     explicit Simulation(const std::string &path);
-    JointState readState() const;
-    void step(const JointTorques &torques);
+    JointFeedback readFeedback() const;
+    void step(const JointCommand &command);
     void reset();
+    const CycleResult &result() const noexcept { return result_; }
+    float time() const noexcept { return adapter_->readContext(*data_).time; }
     // Applied motor torques after the model's output limits.
     const JointTorques &lastTorques() const noexcept { return last_torques_; }
     const mjModel &model() const noexcept { return *model_; }
@@ -24,8 +27,6 @@ public:
     mjData &data() noexcept { return *data_; }
 
 private:
-    void bindJoints();
-
     struct ModelDeleter {
         void operator()(mjModel *value) const;
     };
@@ -36,10 +37,10 @@ private:
 
     std::unique_ptr<mjModel, ModelDeleter> model_;
     std::unique_ptr<mjData, DataDeleter> data_;
-    std::array<int, 6> position_addresses_{};
-    std::array<int, 6> velocity_addresses_{};
-    std::array<int, 6> actuator_ids_{};
+    std::optional<ArmAdapter> adapter_;
+    Arm arm_;
     int zero_key_{};
+    CycleResult result_{};
     JointTorques last_torques_{};
 };
 

@@ -23,7 +23,8 @@ add_subdirectory(third_party/glfw)
 add_subdirectory(third_party/mujoco)
 find_package(OpenGL REQUIRED)
 
-add_library(simlab_simulation STATIC simulation/simulation.cpp)
+add_library(simlab_simulation STATIC
+    simulation/simulation.cpp simulation/adapter.cpp simulation/arm/arm.cpp)
 target_include_directories(simlab_simulation PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(simlab_simulation PUBLIC mujoco::mujoco)
 
@@ -36,7 +37,7 @@ add_library(simlab_viewer STATIC
 target_include_directories(simlab_viewer PUBLIC third_party/imgui)
 target_link_libraries(simlab_viewer PUBLIC simlab_simulation glfw OpenGL::GL)
 
-add_executable(simlab_arm app/main.cpp app/application.cpp simulation/arm/controller.cpp)
+add_executable(simlab_arm app/main.cpp app/application.cpp)
 target_link_libraries(simlab_arm PRIVATE simlab_viewer)
 foreach(target IN ITEMS simlab_simulation simlab_viewer simlab_arm)
     target_compile_options(${target} PRIVATE /W4 /permissive- /utf-8)

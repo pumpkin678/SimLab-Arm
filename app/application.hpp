@@ -4,7 +4,6 @@
 #include "core/window.hpp"
 #include "core/renderer.hpp"
 #include "simulation/simulation.hpp"
-#include "simulation/arm/controller.hpp"
 #include "ui.hpp"
 
 #include <chrono>
@@ -24,7 +23,6 @@ private:
 
     // Keep the model and OpenGL context alive until UI and renderer cleanup finishes.
     Simulation simulation_;
-    Controller controller_;
     Window window_;
     Renderer renderer_;
     Ui ui_;
