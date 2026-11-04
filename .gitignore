@@ -8,6 +8,7 @@
 
 /third_party/mujoco/sdk/
 /imgui.ini
+/tools/config.local.json
 
 __pycache__/
 .venv/

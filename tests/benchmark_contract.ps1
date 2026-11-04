@@ -1,5 +1,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$NativeTest,
+    [Parameter(Mandatory = $true)][string]$NormalApp,
+    [Parameter(Mandatory = $true)][ValidateSet('Release', 'Debug')][string]$Configuration,
     [Parameter(Mandatory = $true)][string]$RepositoryRoot,
     [Parameter(Mandatory = $true)][string]$Model,
     [Parameter(Mandatory = $true)][string]$OutputRoot
@@ -13,7 +15,6 @@ if ($LASTEXITCODE -ne 0) { throw 'Native benchmark contract failed.' }
 $directory = Join-Path $OutputRoot ([Guid]::NewGuid().ToString('N'))
 $existingOutput = Join-Path $directory 'existing output'
 [IO.Directory]::CreateDirectory($existingOutput) | Out-Null
-$configuration = if ($NativeTest -match '[/\\]Debug[/\\]') { 'Debug' } else { 'Release' }
 $script = Join-Path $RepositoryRoot 'tools/benchmark.ps1'
 $invalidOutput = Join-Path $directory 'must not be created'
 foreach ($arguments in @(
@@ -43,7 +44,6 @@ if ($process.ExitCode -ne 0) { throw "Recording failed: $($process.StandardError
 $names = @(Get-ChildItem -LiteralPath $recordedOutput -Force | Sort-Object Name | ForEach-Object Name)
 if (($names -join ',') -ne 'joint_sine.csv,result.json,run.log') { throw 'Recording must produce only CSV, result and log.' }
 
-$normal = Join-Path $RepositoryRoot "build/bin/$configuration/simlab_arm.exe"
-$process = Invoke-BenchmarkProcess -FilePath $normal -Arguments @('--case', 'joint_sine') -WorkingDirectory $RepositoryRoot
+$process = Invoke-BenchmarkProcess -FilePath $NormalApp -Arguments @('--case', 'joint_sine') -WorkingDirectory $RepositoryRoot
 if ($process.ExitCode -eq 0 -or $process.StandardError -notmatch 'tools/benchmark.ps1') { throw 'Missing old-entry migration error.' }
 Write-Host 'PASS script contract: parameter exit codes, output protection, three recording artifacts and old-entry migration.'

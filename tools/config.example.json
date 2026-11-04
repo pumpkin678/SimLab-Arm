@@ -1,0 +1,8 @@
+{
+  "toolchain": "msvc",
+  "tools": {
+    "cmake": "C:/path/to/cmake/bin/cmake.exe",
+    "buildTool": "C:/path/to/ninja.exe",
+    "mingwRoot": "C:/path/to/mingw64"
+  }
+}

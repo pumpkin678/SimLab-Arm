@@ -14,10 +14,13 @@ param(
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'benchmark/process.ps1')
+. (Join-Path $PSScriptRoot 'scripts/common.ps1')
 
 function Invoke-BenchmarkRun {
-    $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-    $executable = Join-Path $repoRoot "build/bin/$Configuration/simlab_benchmark.exe"
+    $context = Get-ToolContext -Configuration $Configuration -Operation Run
+    Initialize-ToolEnvironment $context
+    $repoRoot = $context.RepositoryRoot
+    $executable = Join-Path $context.BinaryDirectory 'simlab_benchmark.exe'
     if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
         throw "simlab_benchmark is not built. Run tools/build.ps1 -Configuration $Configuration first."
     }

@@ -1,8 +1,15 @@
 cmake_minimum_required(VERSION 3.24)
 project(simlab_arm LANGUAGES C CXX)
 
-if(NOT WIN32 OR NOT CMAKE_SIZEOF_VOID_P EQUAL 8 OR NOT MSVC)
-    message(FATAL_ERROR "SimLab-Arm requires Windows x64 and MSVC. Use tools/build.ps1.")
+if(NOT WIN32 OR NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
+    message(FATAL_ERROR "SimLab-Arm requires Windows x64. Use tools/build.ps1.")
+endif()
+if(MSVC)
+    set(simlab_compile_options /W4 /permissive- /utf-8)
+elseif(MINGW AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    set(simlab_compile_options -Wall -Wextra -Wpedantic -finput-charset=UTF-8)
+else()
+    message(FATAL_ERROR "SimLab-Arm supports MSVC and MinGW GCC. Use tools/build.ps1.")
 endif()
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -44,7 +51,7 @@ target_link_libraries(simlab_viewer PUBLIC simlab_simulation glfw OpenGL::GL)
 add_executable(simlab_arm app/main.cpp app/application.cpp app/options.cpp)
 target_link_libraries(simlab_arm PRIVATE simlab_viewer)
 foreach(target IN ITEMS simlab_simulation simlab_viewer simlab_arm)
-    target_compile_options(${target} PRIVATE /W4 /permissive- /utf-8)
+    target_compile_options(${target} PRIVATE ${simlab_compile_options})
 endforeach()
 add_custom_command(TARGET simlab_arm POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
@@ -55,12 +62,12 @@ add_library(simlab_benchmark_core STATIC
     benchmark/cases/cases.cpp benchmark/cases/joint_sine/case.cpp
     benchmark/options.cpp benchmark/runner.cpp)
 target_link_libraries(simlab_benchmark_core PUBLIC simlab_simulation nlohmann_json)
-target_compile_options(simlab_benchmark_core PRIVATE /W4 /permissive- /utf-8)
+target_compile_options(simlab_benchmark_core PRIVATE ${simlab_compile_options})
 target_compile_definitions(simlab_benchmark_core PRIVATE
     SIMLAB_BENCHMARK_CONFIGURATION="$<CONFIG>")
 add_executable(simlab_benchmark benchmark/main.cpp benchmark/ui/gui.cpp)
 target_link_libraries(simlab_benchmark PRIVATE simlab_benchmark_core simlab_viewer)
-target_compile_options(simlab_benchmark PRIVATE /W4 /permissive- /utf-8)
+target_compile_options(simlab_benchmark PRIVATE ${simlab_compile_options})
 add_custom_command(TARGET simlab_benchmark POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
         "$<TARGET_FILE:mujoco::mujoco>" "$<TARGET_FILE_DIR:simlab_benchmark>"
@@ -72,7 +79,7 @@ if(BUILD_TESTING)
     add_executable(simlab_trace_test
         tests/trace_test.cpp app/options.cpp)
     target_link_libraries(simlab_trace_test PRIVATE simlab_simulation)
-    target_compile_options(simlab_trace_test PRIVATE /W4 /permissive- /utf-8)
+    target_compile_options(simlab_trace_test PRIVATE ${simlab_compile_options})
     add_custom_command(TARGET simlab_trace_test POST_BUILD
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different
             "$<TARGET_FILE:mujoco::mujoco>" "$<TARGET_FILE_DIR:simlab_trace_test>"
@@ -82,7 +89,7 @@ if(BUILD_TESTING)
         "${CMAKE_CURRENT_BINARY_DIR}/test-output/trace")
     add_executable(simlab_benchmark_test tests/benchmark_test.cpp)
     target_link_libraries(simlab_benchmark_test PRIVATE simlab_benchmark_core)
-    target_compile_options(simlab_benchmark_test PRIVATE /W4 /permissive- /utf-8)
+    target_compile_options(simlab_benchmark_test PRIVATE ${simlab_compile_options})
     add_custom_command(TARGET simlab_benchmark_test POST_BUILD
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different
             "$<TARGET_FILE:mujoco::mujoco>" "$<TARGET_FILE_DIR:simlab_benchmark_test>"
@@ -91,6 +98,8 @@ if(BUILD_TESTING)
     add_test(NAME benchmark_contract COMMAND "${SIMLAB_POWERSHELL}" -NoProfile -ExecutionPolicy Bypass
         -File "${CMAKE_CURRENT_SOURCE_DIR}/tests/benchmark_contract.ps1"
         -NativeTest "$<TARGET_FILE:simlab_benchmark_test>"
+        -NormalApp "$<TARGET_FILE:simlab_arm>"
+        -Configuration "$<CONFIG>"
         -RepositoryRoot "${CMAKE_CURRENT_SOURCE_DIR}"
         -Model "${CMAKE_CURRENT_SOURCE_DIR}/assets/description/scene.xml"
         -OutputRoot "${CMAKE_CURRENT_BINARY_DIR}/test-output/benchmark")

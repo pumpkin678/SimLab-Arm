@@ -15,8 +15,11 @@ $ErrorActionPreference = 'Stop'
 if ($PSBoundParameters.ContainsKey('Case') -or $PSBoundParameters.ContainsKey('Headless')) {
     throw 'Case execution moved to tools/benchmark.ps1. Use -Case and -Headless there.'
 }
-$repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-$executable = Join-Path $repoRoot "build/bin/$Configuration/simlab_arm.exe"
+. (Join-Path $PSScriptRoot 'scripts/common.ps1')
+$context = Get-ToolContext -Configuration $Configuration -Operation Run
+Initialize-ToolEnvironment $context
+$repoRoot = $context.RepositoryRoot
+$executable = Join-Path $context.BinaryDirectory 'simlab_arm.exe'
 if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
     throw "simlab_arm is not built. Run tools/build.ps1 -Configuration $Configuration first."
 }
