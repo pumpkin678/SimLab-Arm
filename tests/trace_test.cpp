@@ -103,10 +103,8 @@ simlab::Options parse(std::vector<std::string> arguments) {
 
 void checkOptions() {
     require(!parse({"simlab"}).trace, "Trace must default off");
-    const auto options = parse({"simlab", "model with spaces.xml", "--force", "--trace", "trace with spaces.csv",
-        "--case", "joint_sine", "--headless"});
-    require(options.model == "model with spaces.xml" && options.headless && options.reference_case,
-        "Existing model/case/headless options changed");
+    const auto options = parse({"simlab", "model with spaces.xml", "--force", "--trace", "trace with spaces.csv"});
+    require(options.model == "model with spaces.xml", "Model option changed");
     require(options.trace && options.trace->path == "trace with spaces.csv" && options.trace->force,
         "Trace/force parsing");
     for (const auto &arguments : std::vector<std::vector<std::string>>{
@@ -240,10 +238,6 @@ simlab::JointCommand invalidReference(double) {
     return {{std::numeric_limits<float>::quiet_NaN(), 0, 0, 0, 0, 0}};
 }
 
-simlab::JointCommand constantReference(double) {
-    return {{0.125F, 0, 0, 0, 0, 0}};
-}
-
 void requireZeroControl(const simlab::Simulation &simulation) {
     for (int index = 0; index < simulation.model().nu; ++index) {
         require(simulation.data().ctrl[index] == 0, "Failed cycle did not clear control");
@@ -270,10 +264,8 @@ void checkFailures(const std::string &model, const std::filesystem::path &direct
     simulation.reset();
     simulation.flushTrace();
     require(readCsv(path).empty(), "Failed cycle generated a trace row");
-    const simlab::ReferenceCase invalid{"invalid", 1, invalidReference};
-    simlab::ReferenceRun reference(simulation, &invalid);
-    requireThrows([&] { reference.step(); });
-    require(reference.stepCount() == 0, "Invalid reference advanced cycle");
+    requireThrows([&] { simulation.step(invalidReference(0)); });
+    require(simulation.stepCount() == 0, "Invalid reference advanced cycle");
 
     for (const auto failure : {Fault::TimeReset, Fault::NumericalWarning}) {
         simulation.reset();
@@ -294,20 +286,8 @@ void checkFailures(const std::string &model, const std::filesystem::path &direct
     require(readCsv(path).size() == 2, "Engine failures generated extra rows");
 }
 
-void checkCompletion(const std::string &model, const std::filesystem::path &directory) {
-    const auto path = directory / "completion.csv";
+void checkCleanup(const std::string &model, const std::filesystem::path &directory) {
     next_result = {};
-    simlab::Simulation simulation(model, simlab::TraceOptions{path, false});
-    const simlab::ReferenceCase definition{"short", 0.003, constantReference};
-    simlab::ReferenceRun reference(simulation, &definition);
-    while (reference.step()) {}
-    require(reference.completed() && reference.stepCount() == 3 && simulation.stepCount() == 3,
-        "Reference does not use Simulation's cycle count");
-    require(readCsv(path).size() == 3, "Case completion did not flush while Simulation is alive");
-    require(!reference.step(), "Completed case advanced");
-    reference.reset();
-    require(!reference.completed() && reference.stepCount() == 0, "Reference reset state");
-
     const auto unwind_path = directory / "unwind.csv";
     try {
         simlab::Simulation unwinding(model, simlab::TraceOptions{unwind_path, false});
@@ -348,8 +328,8 @@ int main(int argc, char **argv) {
         checkSimulation(argv[1], directory);
         checkEquivalence(argv[1], directory);
         checkFailures(argv[1], directory);
-        checkCompletion(argv[1], directory);
-        std::cout << "PASS trace contract: options, 35 columns, real cycle pairing, reset, completion, "
+        checkCleanup(argv[1], directory);
+        std::cout << "PASS trace contract: options, 35 columns, real cycle pairing, reset, cleanup, "
                      "recording equivalence, failure rejection and file lifecycle\nArtifacts: " << directory << '\n';
         return 0;
     } catch (const std::exception &error) {

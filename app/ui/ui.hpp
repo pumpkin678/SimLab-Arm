@@ -3,7 +3,7 @@
 
 #include "core/window.hpp"
 #include "simulation/arm/types.hpp"
-#include "app/reference/reference.hpp"
+#include "simulation/adapter.hpp"
 
 struct ImGuiContext;
 
@@ -21,10 +21,11 @@ public:
     Ui(const Ui &) = delete;
     Ui &operator=(const Ui &) = delete;
     void beginFrame();
-    UiActions buildControls(bool paused, ReferenceRun &reference, const JointPositionLimits &limits);
+    bool beginPanel();
+    void endPanel();
+    UiActions buildControls(bool paused, JointCommand &target, const JointPositionLimits &limits);
     bool buildReadouts(
-        const JointFeedback &feedback, const JointTorques &torques, float time, bool paused,
-        const ReferenceRun &reference);
+        const JointFeedback &feedback, const JointTorques &torques, float time, bool paused);
     void draw();
     WindowSize sceneSize() const noexcept { return scene_size_; }
     bool captures(const InputEvent &event) const;

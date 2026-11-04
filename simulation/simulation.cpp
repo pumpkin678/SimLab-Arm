@@ -42,6 +42,11 @@ JointFeedback Simulation::readFeedback() const {
 
 void Simulation::step(const JointCommand &command) {
     try {
+        for (std::size_t index = 0; index < command.position.size(); ++index) {
+            if (!std::isfinite(command.position[index])) {
+                throw std::runtime_error("Non-finite reference position for J" + std::to_string(index + 1));
+            }
+        }
         adapter_->validate(*data_);
         const double time = data_->time;
         constexpr std::array warning_ids{mjWARN_BADQPOS, mjWARN_BADQVEL, mjWARN_BADQACC, mjWARN_BADCTRL};

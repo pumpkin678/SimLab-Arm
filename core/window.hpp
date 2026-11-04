@@ -7,7 +7,7 @@ struct GLFWwindow;
 
 namespace simlab {
 
-enum class EventType { TogglePause, ResetSimulation, ResetView, Rotate, Pan, Zoom };
+enum class EventType { TogglePause, ResetSimulation, ResetView, Cancel, Rotate, Pan, Zoom };
 
 struct InputEvent {
     EventType type{};
@@ -24,7 +24,7 @@ struct WindowSize {
 
 class Window {
 public:
-    Window();
+    explicit Window(const char *title = "SimLab-Arm");
     ~Window();
     Window(const Window &) = delete;
     Window &operator=(const Window &) = delete;

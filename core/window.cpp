@@ -8,7 +8,7 @@
 
 namespace simlab {
 
-Window::Window() {
+Window::Window(const char *title) {
     glfwSetErrorCallback([](int code, const char *message) {
         std::cerr << "GLFW " << code << ": " << message << '\n';
     });
@@ -16,7 +16,7 @@ Window::Window() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
     glfwWindowHint(GLFW_SAMPLES, 4);
-    window_ = glfwCreateWindow(1600, 900, "SimLab-Arm", nullptr, nullptr);
+    window_ = glfwCreateWindow(1600, 900, title, nullptr, nullptr);
     if (!window_) {
         glfwTerminate();
         throw std::runtime_error("Failed to create the OpenGL window.");
@@ -80,6 +80,7 @@ void Window::keyCallback(GLFWwindow *window, int key, int, int action, int) {
     if (key == GLFW_KEY_SPACE) self(window).events_.push_back({EventType::TogglePause});
     if (key == GLFW_KEY_R) self(window).events_.push_back({EventType::ResetSimulation});
     if (key == GLFW_KEY_F) self(window).events_.push_back({EventType::ResetView});
+    if (key == GLFW_KEY_BACKSPACE) self(window).events_.push_back({EventType::Cancel});
 }
 
 void Window::buttonCallback(GLFWwindow *window, int button, int action, int) {

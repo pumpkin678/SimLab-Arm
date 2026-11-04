@@ -21,4 +21,4 @@ if ($LASTEXITCODE -ne 0 -or -not $vsRoot) { throw 'Visual Studio with the x64 C+
 $ctest = Join-Path $vsRoot 'Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/ctest.exe'
 if (-not (Test-Path -LiteralPath $ctest -PathType Leaf)) { throw 'The Visual Studio CMake tools component is required.' }
 & $ctest --test-dir $buildDir --output-on-failure
-if ($LASTEXITCODE -ne 0) { throw "Trace tests failed ($LASTEXITCODE)." }
+if ($LASTEXITCODE -ne 0) { throw "Simulation tests failed ($LASTEXITCODE)." }

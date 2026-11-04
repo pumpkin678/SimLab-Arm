@@ -12,6 +12,9 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+if ($PSBoundParameters.ContainsKey('Case') -or $PSBoundParameters.ContainsKey('Headless')) {
+    throw 'Case execution moved to tools/benchmark.ps1. Use -Case and -Headless there.'
+}
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $executable = Join-Path $repoRoot "build/bin/$Configuration/simlab_arm.exe"
 if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
@@ -25,8 +28,6 @@ $modelPath = if ([IO.Path]::IsPathRooted($Model)) {
 Push-Location -LiteralPath $repoRoot
 try {
     $runArguments = @($modelPath)
-    if ($PSBoundParameters.ContainsKey('Case')) { $runArguments += @('--case', $Case) }
-    if ($Headless) { $runArguments += '--headless' }
     if ($PSBoundParameters.ContainsKey('Trace')) {
         $tracePath = if ([IO.Path]::IsPathRooted($Trace)) {
             [IO.Path]::GetFullPath($Trace)

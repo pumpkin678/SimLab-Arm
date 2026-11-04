@@ -23,6 +23,10 @@ add_subdirectory(third_party/glfw)
 add_subdirectory(third_party/mujoco)
 find_package(OpenGL REQUIRED)
 
+# nlohmann/json 3.12.0, vendored with its MIT license.
+add_library(nlohmann_json INTERFACE)
+target_include_directories(nlohmann_json INTERFACE third_party/nlohmann_json/include)
+
 add_library(simlab_simulation STATIC
     simulation/simulation.cpp simulation/adapter.cpp simulation/trace.cpp simulation/arm/arm.cpp)
 target_include_directories(simlab_simulation PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -37,7 +41,7 @@ add_library(simlab_viewer STATIC
 target_include_directories(simlab_viewer PUBLIC third_party/imgui)
 target_link_libraries(simlab_viewer PUBLIC simlab_simulation glfw OpenGL::GL)
 
-add_executable(simlab_arm app/main.cpp app/application.cpp app/options.cpp app/reference/reference.cpp)
+add_executable(simlab_arm app/main.cpp app/application.cpp app/options.cpp)
 target_link_libraries(simlab_arm PRIVATE simlab_viewer)
 foreach(target IN ITEMS simlab_simulation simlab_viewer simlab_arm)
     target_compile_options(${target} PRIVATE /W4 /permissive- /utf-8)
@@ -47,11 +51,26 @@ add_custom_command(TARGET simlab_arm POST_BUILD
         "$<TARGET_FILE:mujoco::mujoco>" "$<TARGET_FILE_DIR:simlab_arm>"
     VERBATIM)
 
-option(BUILD_TESTING "Build the trace contract check" ON)
+add_library(simlab_benchmark_core STATIC
+    benchmark/cases/cases.cpp benchmark/cases/joint_sine/case.cpp
+    benchmark/options.cpp benchmark/runner.cpp)
+target_link_libraries(simlab_benchmark_core PUBLIC simlab_simulation nlohmann_json)
+target_compile_options(simlab_benchmark_core PRIVATE /W4 /permissive- /utf-8)
+target_compile_definitions(simlab_benchmark_core PRIVATE
+    SIMLAB_BENCHMARK_CONFIGURATION="$<CONFIG>")
+add_executable(simlab_benchmark benchmark/main.cpp benchmark/ui/gui.cpp)
+target_link_libraries(simlab_benchmark PRIVATE simlab_benchmark_core simlab_viewer)
+target_compile_options(simlab_benchmark PRIVATE /W4 /permissive- /utf-8)
+add_custom_command(TARGET simlab_benchmark POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+        "$<TARGET_FILE:mujoco::mujoco>" "$<TARGET_FILE_DIR:simlab_benchmark>"
+    VERBATIM)
+
+option(BUILD_TESTING "Build simulation contract checks" ON)
 if(BUILD_TESTING)
     enable_testing()
     add_executable(simlab_trace_test
-        tests/trace_test.cpp app/options.cpp app/reference/reference.cpp)
+        tests/trace_test.cpp app/options.cpp)
     target_link_libraries(simlab_trace_test PRIVATE simlab_simulation)
     target_compile_options(simlab_trace_test PRIVATE /W4 /permissive- /utf-8)
     add_custom_command(TARGET simlab_trace_test POST_BUILD
@@ -61,4 +80,18 @@ if(BUILD_TESTING)
     add_test(NAME trace COMMAND simlab_trace_test
         "${CMAKE_CURRENT_SOURCE_DIR}/assets/description/scene.xml"
         "${CMAKE_CURRENT_BINARY_DIR}/test-output/trace")
+    add_executable(simlab_benchmark_test tests/benchmark_test.cpp)
+    target_link_libraries(simlab_benchmark_test PRIVATE simlab_benchmark_core)
+    target_compile_options(simlab_benchmark_test PRIVATE /W4 /permissive- /utf-8)
+    add_custom_command(TARGET simlab_benchmark_test POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "$<TARGET_FILE:mujoco::mujoco>" "$<TARGET_FILE_DIR:simlab_benchmark_test>"
+        VERBATIM)
+    find_program(SIMLAB_POWERSHELL NAMES powershell REQUIRED)
+    add_test(NAME benchmark_contract COMMAND "${SIMLAB_POWERSHELL}" -NoProfile -ExecutionPolicy Bypass
+        -File "${CMAKE_CURRENT_SOURCE_DIR}/tests/benchmark_contract.ps1"
+        -NativeTest "$<TARGET_FILE:simlab_benchmark_test>"
+        -RepositoryRoot "${CMAKE_CURRENT_SOURCE_DIR}"
+        -Model "${CMAKE_CURRENT_SOURCE_DIR}/assets/description/scene.xml"
+        -OutputRoot "${CMAKE_CURRENT_BINARY_DIR}/test-output/benchmark")
 endif()

@@ -70,9 +70,8 @@ void Ui::beginFrame() {
     scene_size_ = {framebuffer_size_.width - sidebar_pixels, framebuffer_size_.height};
 }
 
-UiActions Ui::buildControls(bool paused, ReferenceRun &reference, const JointPositionLimits &limits) {
-    UiActions actions;
-    if (scene_size_.width == framebuffer_size_.width) return actions;
+bool Ui::beginPanel() {
+    if (scene_size_.width == framebuffer_size_.width) return false;
     const auto &io = ImGui::GetIO();
     const float scene_width = io.DisplaySize.x * scene_size_.width / framebuffer_size_.width;
     ImGui::SetNextWindowPos({scene_width, 0.0F});
@@ -80,50 +79,44 @@ UiActions Ui::buildControls(bool paused, ReferenceRun &reference, const JointPos
     ImGui::Begin("Simulation", nullptr,
         ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
         ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus);
+    return true;
+}
+
+void Ui::endPanel() {
+    if (scene_size_.width != framebuffer_size_.width) ImGui::End();
+}
+
+UiActions Ui::buildControls(bool paused, JointCommand &target, const JointPositionLimits &limits) {
+    UiActions actions;
+    if (!beginPanel()) return actions;
     ImGui::SeparatorText("Run");
-    ImGui::BeginDisabled(reference.completed());
     actions.toggle_pause = ImGui::Button(paused ? "Run (Space)" : "Pause (Space)");
-    ImGui::EndDisabled();
     ImGui::SameLine();
     actions.reset = ImGui::Button("Reset (R)");
-    if (!reference.caseDefinition()) {
-        ImGui::SeparatorText("Reference [deg]");
-        auto &target = reference.manualTarget();
-        for (std::size_t index = 0; index < target.position.size(); ++index) {
-            const auto label = "J" + std::to_string(index + 1);
-            const auto &limit = limits[index];
-            if (limit.limited) {
-                ImGui::SliderAngle(label.c_str(), &target.position[index],
-                    static_cast<float>(limit.lower * kRadiansToDegrees),
-                    static_cast<float>(limit.upper * kRadiansToDegrees), "%.3f deg",
-                    ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_NoRoundToFormat);
-            } else {
-                float degrees = static_cast<float>(target.position[index] * kRadiansToDegrees);
-                if (ImGui::InputFloat(label.c_str(), &degrees, 0, 0, "%.3f")) {
-                    target.position[index] = static_cast<float>(degrees / kRadiansToDegrees);
-                }
+    ImGui::SeparatorText("Reference [deg]");
+    for (std::size_t index = 0; index < target.position.size(); ++index) {
+        const auto label = "J" + std::to_string(index + 1);
+        const auto &limit = limits[index];
+        if (limit.limited) {
+            ImGui::SliderAngle(label.c_str(), &target.position[index],
+                static_cast<float>(limit.lower * kRadiansToDegrees),
+                static_cast<float>(limit.upper * kRadiansToDegrees), "%.3f deg",
+                ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_NoRoundToFormat);
+        } else {
+            float degrees = static_cast<float>(target.position[index] * kRadiansToDegrees);
+            if (ImGui::InputFloat(label.c_str(), &degrees, 0, 0, "%.3f")) {
+                target.position[index] = static_cast<float>(degrees / kRadiansToDegrees);
             }
         }
-        ImGui::TextDisabled("Ctrl+click a slider to enter an angle.");
     }
+    ImGui::TextDisabled("Ctrl+click a slider to enter an angle.");
     // Keep the panel open so readouts can be drawn after this frame's physics steps.
     return actions;
 }
 
 bool Ui::buildReadouts(
-    const JointFeedback &feedback, const JointTorques &torques, float time, bool paused,
-    const ReferenceRun &reference) {
+    const JointFeedback &feedback, const JointTorques &torques, float time, bool paused) {
     if (scene_size_.width == framebuffer_size_.width) return false;
-    if (const auto *reference_case = reference.caseDefinition()) {
-        ImGui::SeparatorText("Reference [deg]");
-        ImGui::Text("Case: %.*s", static_cast<int>(reference_case->name.size()), reference_case->name.data());
-        ImGui::Text("Duration: %.3f s", reference_case->duration);
-        if (reference.completed()) ImGui::Text("Completed - Reset to run again");
-        const auto target = reference.command();
-        for (std::size_t index = 0; index < target.position.size(); ++index) {
-            ImGui::Text("J%d: % .3f", static_cast<int>(index + 1), target.position[index] * kRadiansToDegrees);
-        }
-    }
     ImGui::Text("State: %s", paused ? "Paused" : "Running");
     ImGui::Text("Time: %.3f s", time);
 
@@ -155,13 +148,12 @@ bool Ui::buildReadouts(
     ImGui::Checkbox("Coordinate frames", &show_frames_);
     ImGui::SetItemTooltip("X: red, Y: green, Z: blue");
     const bool reset_camera = ImGui::Button("Reset view (F)");
-    ImGui::End();
     return reset_camera;
 }
 
 bool Ui::captures(const InputEvent &event) const {
     if (event.type == EventType::TogglePause || event.type == EventType::ResetSimulation ||
-        event.type == EventType::ResetView) return ImGui::GetIO().WantCaptureKeyboard;
+        event.type == EventType::ResetView || event.type == EventType::Cancel) return ImGui::GetIO().WantCaptureKeyboard;
     const double scene_width = ImGui::GetIO().DisplaySize.x * scene_size_.width / framebuffer_size_.width;
     return ImGui::GetIO().WantCaptureMouse || event.origin_x >= scene_width;
 }

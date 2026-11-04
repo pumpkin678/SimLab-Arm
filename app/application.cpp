@@ -3,13 +3,10 @@
 namespace simlab {
 
 Application::Application(
-    const std::string &model_path, const ReferenceCase *reference_case,
-    const std::optional<TraceOptions> &trace)
+    const std::string &model_path, const std::optional<TraceOptions> &trace)
     : simulation_(model_path, trace),
-      reference_(simulation_, reference_case),
       renderer_(simulation_.model()),
-      ui_(window_),
-      paused_(reference_case == nullptr) {}
+      ui_(window_) {}
 
 void Application::run() {
     previous_ = Clock::now();
@@ -25,7 +22,7 @@ void Application::run() {
         }
 
         ui_.beginFrame();
-        auto actions = ui_.buildControls(paused_, reference_, simulation_.positionLimits());
+        auto actions = ui_.buildControls(paused_, target_, simulation_.positionLimits());
         for (const auto &event : events) {
             if (ui_.captures(event)) continue;
             switch (event.type) {
@@ -38,23 +35,27 @@ void Application::run() {
             case EventType::ResetView:
                 renderer_.resetCamera();
                 break;
+            case EventType::Cancel:
+                break;
             default:
                 renderer_.moveCamera(event, window_.logicalSize().height);
                 break;
             }
         }
         if (actions.reset) {
-            reference_.reset();
+            simulation_.reset();
+            target_ = {};
             paused_ = true;
-        } else if (actions.toggle_pause && !reference_.completed()) {
+        } else if (actions.toggle_pause) {
             paused_ = !paused_;
         }
         advanceSimulation(actions.reset || actions.toggle_pause);
 
         if (ui_.buildReadouts(
-            simulation_.readFeedback(), simulation_.lastTorques(), simulation_.time(), paused_, reference_)) {
+            simulation_.readFeedback(), simulation_.lastTorques(), simulation_.time(), paused_)) {
             renderer_.resetCamera();
         }
+        ui_.endPanel();
         renderer_.draw(simulation_.data(), ui_.sceneSize(), ui_.showFrames());
         ui_.draw();
         window_.swapBuffers();
@@ -72,13 +73,8 @@ void Application::advanceSimulation(bool reset_timing) {
 
     const double timestep = simulation_.model().opt.timestep;
     while (accumulated_ >= timestep) {
-        reference_.step();
+        simulation_.step(target_);
         accumulated_ -= timestep;
-        if (reference_.completed()) {
-            paused_ = true;
-            accumulated_ = 0;
-            break;
-        }
     }
 }
 

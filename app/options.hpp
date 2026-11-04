@@ -1,17 +1,16 @@
 #ifndef SIMLAB_APP_OPTIONS_HPP
 #define SIMLAB_APP_OPTIONS_HPP
 
-#include "app/reference/reference.hpp"
+#include "simulation/trace.hpp"
 
+#include <optional>
 #include <string>
 
 namespace simlab {
 
 struct Options {
     std::string model{"assets/description/scene.xml"};
-    const ReferenceCase *reference_case{};
     std::optional<TraceOptions> trace;
-    bool headless{};
     bool help{};
 };
 

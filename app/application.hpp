@@ -4,7 +4,6 @@
 #include "core/window.hpp"
 #include "core/renderer.hpp"
 #include "simulation/simulation.hpp"
-#include "app/reference/reference.hpp"
 #include "app/ui/ui.hpp"
 
 #include <chrono>
@@ -15,8 +14,7 @@ namespace simlab {
 class Application {
 public:
     explicit Application(
-        const std::string &model_path, const ReferenceCase *reference_case = nullptr,
-        const std::optional<TraceOptions> &trace = std::nullopt);
+        const std::string &model_path, const std::optional<TraceOptions> &trace = std::nullopt);
     void run();
 
 private:
@@ -26,7 +24,7 @@ private:
 
     // Keep the model and OpenGL context alive until UI and renderer cleanup finishes.
     Simulation simulation_;
-    ReferenceRun reference_;
+    JointCommand target_{};
     Window window_;
     Renderer renderer_;
     Ui ui_;
