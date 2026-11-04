@@ -3,6 +3,7 @@
 #include "posture_hold/case.hpp"
 #include "joint_step/case.hpp"
 #include "joint_tracking/case.hpp"
+#include "joint_tracking_stress/case.hpp"
 #include "target_switch/case.hpp"
 
 #include <stdexcept>
@@ -15,6 +16,7 @@ std::string_view phaseKindName(PhaseKind kind) {
     case PhaseKind::Response: return "response";
     case PhaseKind::Hold: return "hold";
     case PhaseKind::Tracking: return "tracking";
+    case PhaseKind::Recovery: return "recovery";
     }
     throw std::logic_error("Unknown benchmark phase kind.");
 }
@@ -27,6 +29,8 @@ const PhaseSpec *phaseAt(const CaseSpec &spec, double time) {
 }
 
 std::vector<CaseSpec> selectCases(std::string_view selection) {
+    // Stress inputs are opt-in; all is the regular teaching suite.
+    if (selection == "joint_tracking_stress") return {joint_tracking_stress::definition()};
     const std::vector<CaseSpec> definitions{joint_sine::definition(), posture_hold::definition(),
         joint_step::definition(), joint_tracking::definition(), target_switch::definition()};
     std::vector<CaseSpec> selected;

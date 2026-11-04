@@ -62,6 +62,7 @@ add_library(simlab_benchmark_core STATIC
     benchmark/cases/cases.cpp benchmark/cases/joint_sine/case.cpp
     benchmark/cases/posture_hold/case.cpp benchmark/cases/joint_step/case.cpp
     benchmark/cases/joint_tracking/case.cpp benchmark/cases/target_switch/case.cpp
+    benchmark/cases/joint_tracking_stress/case.cpp
     benchmark/options.cpp benchmark/runner.cpp)
 target_link_libraries(simlab_benchmark_core PUBLIC simlab_simulation nlohmann_json)
 target_compile_options(simlab_benchmark_core PRIVATE ${simlab_compile_options})

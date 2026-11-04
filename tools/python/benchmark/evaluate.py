@@ -24,7 +24,7 @@ VELOCITY_BAND = math.radians(5)
 MINIMUM_HOLD = 0.2
 TAIL_DURATION = 0.5
 TIME_TOLERANCE = 1e-8  # Covers accumulated double time roundoff, not a missing physics cycle.
-KINDS = {"initialization", "response", "hold", "tracking"}
+KINDS = {"initialization", "response", "hold", "tracking", "recovery"}
 
 
 class Sample(NamedTuple):
@@ -140,28 +140,32 @@ def evaluate_phase(phase, rows, first, last, timestep):
         return report
     if not samples:
         return report
-    if phase["kind"] in {"response", "hold"}:
+    if phase["kind"] in {"response", "hold", "recovery"}:
         require(all(row.target == samples[0].target for row in samples), "Constant-target phase contains changing inputs")
     active = phase["active_joints"]
     for joint in range(6):
         errors = [row.target[joint] - row.position[joint] for row in samples]
         velocities = [row.velocity[joint] for row in samples]
         metrics = {"joint": joint + 1, "role": "active" if joint + 1 in active else "held",
+                   "initial_position_error_rad": errors[0], "initial_velocity_radps": velocities[0],
                    "position_error_mean_rad": math.fsum(errors) / len(errors),
                    "position_error_rms_rad": math.sqrt(math.fsum(e * e for e in errors) / len(errors)),
                    "position_error_max_abs_rad": max(map(abs, errors)),
                    "velocity_peak_abs_radps": max(map(abs, velocities)),
                    "request_torque_peak_abs_nm": max(abs(row.request[joint]) for row in samples),
                    "applied_torque_peak_abs_nm": max(abs(row.applied[joint]) for row in samples)}
+        if joint + 1 not in active:
+            metrics["held_start_in_band"] = abs(errors[0]) <= POSITION_BAND and abs(velocities[0]) <= VELOCITY_BAND
         if phase["kind"] == "hold":
             metrics["velocity_rms_radps"] = math.sqrt(math.fsum(v * v for v in velocities) / len(velocities))
-        if phase["kind"] == "response":
+        if phase["kind"] in {"response", "recovery"}:
             tail = [row.target[joint] - row.position[joint] for row in samples if row.time >= end - TAIL_DURATION]
             valid_tail = complete and end - start >= TAIL_DURATION and bool(tail)
             metrics["tail_position_error_mean_rad"] = math.fsum(tail) / len(tail) if valid_tail else None
             metrics["tail_reason"] = "recorded" if valid_tail else ("incomplete_phase" if not complete else "phase_too_short")
             if joint + 1 in active:
                 metrics.update(response_times(samples, joint, phase, timestep, complete))
+            if joint + 1 in active and phase["kind"] == "response":
                 # The first response starts from the measured initial pose; later responses
                 # use the last input before the target change, not a regenerated reference.
                 previous = rows[first - 1].target[joint] if first else samples[0].position[joint]
@@ -238,6 +242,9 @@ def summary(result):
                     worst = max(group, key=lambda joint: joint["position_error_max_abs_rad"])
                     label += f"; {role} max error J{worst['joint']} {math.degrees(worst['position_error_max_abs_rad']):.3f} deg"
             label += f"; peak speed {math.degrees(peak_speed):.3f} deg/s"
+            inherited = [str(joint["joint"]) for joint in joints if joint.get("held_start_in_band") is False]
+            if inherited:
+                label += "; held joints outside band at start: " + ",".join("J" + joint for joint in inherited)
             for joint in joints:
                 if "arrival_time_s" not in joint:
                     continue

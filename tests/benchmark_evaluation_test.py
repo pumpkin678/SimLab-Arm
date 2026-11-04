@@ -100,6 +100,36 @@ class EvaluationTest(unittest.TestCase):
         self.assertNotIn("overshoot_rad", joint)
         self.assertNotIn("arrival_time_s", joint)
 
+    def test_recovery_is_separate_from_tracking_and_has_no_step_overshoot(self):
+        phases = [{"id": "tracking", "start_s": 0, "end_s": 0.5, "kind": "tracking", "active_joints": [1]},
+                  {"id": "recovery", "start_s": 0.5, "end_s": 1, "kind": "recovery", "active_joints": [1]}]
+        def update(index, row):
+            row["position"][0] = 0.9 if index < 12 else 1
+        result = evaluate_run(self.fixture(phases=phases, update=update))
+        self.assertAlmostEqual(self.phase(result)["joints"][0]["position_error_rms_rad"], 0.1)
+        recovery = self.phase(result, 1)["joints"][0]
+        self.assertAlmostEqual(recovery["arrival_time_s"], 0.1)
+        self.assertAlmostEqual(recovery["settling_time_s"], 0.1)
+        self.assertNotIn("overshoot_rad", recovery)
+        partial = evaluate_run(self.fixture(count=12, status="cancelled", phases=phases, update=update))
+        recovery = self.phase(partial, 1)["joints"][0]
+        self.assertIsNone(recovery["settling_time_s"])
+        self.assertEqual(recovery["settling_reason"], "incomplete_phase")
+
+    def test_held_initial_error_and_velocity_are_explained_without_hiding_errors(self):
+        for mode in ("position", "velocity"):
+            def update(index, row):
+                row["position"][0] = 1
+                if index == 0:
+                    row[mode][1] = 0.2
+            result = evaluate_run(self.fixture(kind="tracking", update=update))
+            joint = self.phase(result)["joints"][1]
+            self.assertFalse(joint["held_start_in_band"])
+            self.assertAlmostEqual(joint["initial_position_error_rad"], -0.2 if mode == "position" else 0)
+            self.assertAlmostEqual(joint["initial_velocity_radps"], 0.2 if mode == "velocity" else 0)
+            self.assertIn("held joints outside band at start: J2", summary(result))
+            self.assertTrue(self.phase(result)["joints"][2]["held_start_in_band"])
+
     def test_phase_boundary_and_short_tail(self):
         phases = [{"id": "brief", "start_s": 0, "end_s": 0.2, "kind": "response", "active_joints": [1]},
                   {"id": "after", "start_s": 0.2, "end_s": 1, "kind": "response", "active_joints": [1]}]

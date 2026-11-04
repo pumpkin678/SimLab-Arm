@@ -93,9 +93,11 @@ void checkOptions() {
 }
 
 void checkTeachingCases(const std::string &model) {
-    const auto cases = selectCases("all");
-    const std::array<std::string_view, 5> ids{"joint_sine", "posture_hold", "joint_step", "joint_tracking", "target_switch"};
-    const std::array<double, 5> durations{8, 18, 64, 52, 40};
+    auto cases = selectCases("all");
+    require(cases.size() == 5, "Stress case must not be selected by all");
+    cases.push_back(selectCases("joint_tracking_stress").front());
+    const std::array<std::string_view, 6> ids{"joint_sine", "posture_hold", "joint_step", "joint_tracking", "target_switch", "joint_tracking_stress"};
+    const std::array<double, 6> durations{8, 18, 64, 40, 44, 40};
     simlab::Simulation simulation(model);
     const auto &ranges = simulation.model();
     for (std::size_t index = 0; index < cases.size(); ++index) {
@@ -129,10 +131,26 @@ void checkTeachingCases(const std::string &model) {
         near(cases[2].evaluate(6).position[0], -20 * radians) &&
         near(cases[2].evaluate(14).position[1], 50 * radians), "Single-axis step schedule");
     require(near(cases[3].evaluate(5).position[0], -5 * radians) &&
-        near(cases[3].evaluate(8.25).position[0], -5 * radians), "Slow/fast tracking periods");
-    require(near(cases[4].evaluate(10).position[5], 120 * radians) &&
-        near(cases[4].evaluate(10.2).position[5], 0) &&
-        near(cases[4].evaluate(16.6).position[5], -120 * radians), "Retarget timing");
+        near(cases[3].evaluate(8.25).position[0], -15 * radians) &&
+        near(cases[3].evaluate(11).position[1], 55 * radians), "Regular tracking and recovery schedule");
+    require(near(cases[5].evaluate(4.25).position[0], -5 * radians) &&
+        near(cases[5].evaluate(8.25).position[0], -15 * radians), "Opt-in stress period and recovery");
+    require(near(cases[4].evaluate(10).position[2], -60 * radians) &&
+        near(cases[4].evaluate(14).position[5], 120 * radians) &&
+        near(cases[4].evaluate(14.2).position[5], 0) &&
+        near(cases[4].evaluate(20.6).position[5], -120 * radians), "Retarget timing and return to A");
+    for (const auto index : {3U, 5U}) {
+        for (std::size_t joint = 0; joint < 6; ++joint) {
+            const double recovery_start = 8.0 + 6.0 * static_cast<double>(joint);
+            const auto *phase = phaseAt(cases[index], recovery_start);
+            require(phase && phase->kind == PhaseKind::Recovery && phase->active_joints[joint], "Missing recovery phase");
+            const auto recovery_target = cases[index].evaluate(recovery_start + 1);
+            require(recovery_target.position == cases[index].evaluate(0).position, "Recovery must hold pose A");
+        }
+    }
+    const auto *withdraw = phaseAt(cases[4], 14.2);
+    require(withdraw && !withdraw->active_joints[1] && !withdraw->active_joints[2] &&
+        withdraw->active_joints[3] && withdraw->active_joints[5], "Withdrawal should change only the wrist targets");
     auto invalid_phase = definition("invalid_phase");
     invalid_phase.phases[0].start = 0.001;
     requireThrows([&] { Runner invalid_runner(Options{}, {invalid_phase}); });

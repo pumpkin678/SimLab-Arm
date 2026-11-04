@@ -75,13 +75,15 @@ git submodule update --init --recursive
 ./tools/benchmark.ps1 -Headless -Test
 # GUI 定位具体工况；关闭窗口后评价
 ./tools/benchmark.ps1 -Case joint_step -Test
+# 单独运行可选压力测试
+./tools/benchmark.ps1 -Case joint_tracking_stress -Headless -Test
 ```
 
 | 参数 | 用途 |
 | --- | --- |
 | `-Configuration Debug` | 使用 Debug 版本，默认 Release |
 | `-Model <路径>` | 指定模型，相对路径按仓库根目录解析 |
-| `-Case <ID或all>` | 选择单个已登记工况，默认 all |
+| `-Case <ID或all>` | 选择单个工况，默认 all 执行常规工况；joint_tracking_stress 需显式选择 |
 | `-Record` | GUI 模式下开启录制 |
 | `-Headless` | 不创建窗口，自动开启录制，执行结束后退出 |
 | `-Test` | 自动开启录制，进程结束后调用 Python 评价；是否显示窗口仍由 Headless 决定 |

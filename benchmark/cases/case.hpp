@@ -15,7 +15,7 @@ struct Parameter {
     double value;
 };
 
-enum class PhaseKind { Initialization, Response, Hold, Tracking };
+enum class PhaseKind { Initialization, Response, Hold, Tracking, Recovery };
 std::string_view phaseKindName(PhaseKind kind);
 
 struct PhaseSpec {

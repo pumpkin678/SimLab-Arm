@@ -16,11 +16,11 @@ Benchmark 用代码生成六轴目标位置，通过普通 `Simulation::step(com
 
 参考只有六轴位置，J1–J6 对应数组下标 0–5。接入层不生成速度、加速度或平滑轨迹；函数输出中的有限越界目标原样传给 Arm，非有限目标由 Simulation 拒绝。
 
-每个工况放在 `benchmark/cases/<ID>/` 中。该目录的 `case.hpp` 声明定义入口，`case.cpp` 保存参数、参考函数和返回完整 CaseSpec 的 `definition()`。公共类型放在 `benchmark/cases/case.hpp`，登记与选择放在 [cases.cpp](../benchmark/cases/cases.cpp)。选择 `all` 时按登记顺序执行，单个 ID 只执行对应项。
+每个工况放在 `benchmark/cases/<ID>/` 中。该目录的 `case.hpp` 声明定义入口，`case.cpp` 保存参数、参考函数和返回完整 CaseSpec 的 `definition()`。公共类型放在 `benchmark/cases/case.hpp`，登记与选择放在 [cases.cpp](../benchmark/cases/cases.cpp)。选择 `all` 时按登记顺序执行常规工况，单个 ID 只执行对应项；可选 joint_tracking_stress 必须显式选择。
 
 新增工况时，在独立目录实现定义入口，将其加入登记列表，并在根 `CMakeLists.txt` 的 benchmark 核心源文件列表加入对应 `.cpp`。参考函数依据传入的仿真时间求值，不以墙钟或渲染帧数计时。预先确定切换时刻的分段参考可以直接按时间区间生成。
 
-阶段使用唯一 ID、起止时间、评价类别及六轴主动标记，区间为左闭右开，连续覆盖工况时长。类别为 initialization、response、hold、tracking。参考函数与元数据复用工况自身的时间和参数；评价脚本不按 case ID 重新生成参考。GUI 显示最近成功周期所属阶段及进度，显示操作不求值参考。
+阶段使用唯一 ID、起止时间、评价类别及六轴主动标记，区间为左闭右开，连续覆盖工况时长。类别为 initialization、response、hold、tracking、recovery。recovery 用于跟随后固定目标的恢复过程，主动标记对应刚结束运动的轴。参考函数与元数据复用工况自身的时间和参数；评价脚本不按 case ID 重新生成参考。GUI 显示最近成功周期所属阶段及进度，显示操作不求值参考。
 
 ### 工况示例
 
@@ -83,7 +83,9 @@ Case 状态使用 `not_started`、`running`、`completed`、`cancelled`、`faile
 
 根 evaluation 保存独立的 format_version、评价状态和统计口径；每个 case 的 evaluation 保存阶段数组，按阶段 ID 对应原始 phases。阶段状态为 completed、partial 或 not_started；初始化阶段标记 excluded，不输出关节指标。无阶段工况标为 not_applicable。
 
-关节结果包含 joint、active/held 角色以及带单位后缀的指标字段，例如 position_error_rms_rad、velocity_peak_abs_radps、request_torque_peak_abs_nm。响应阶段还包含 arrival_time_s、settling_time_s、overshoot_rad、tail_position_error_mean_rad 和相应原因。指标定义与解释集中在 [教学任务说明](teaching.md#指标与解释)。
+关节结果包含 joint、active/held 角色以及带单位后缀的指标字段，例如 position_error_rms_rad、velocity_peak_abs_radps、request_torque_peak_abs_nm。response 和 recovery 包含 arrival_time_s、settling_time_s、tail_position_error_mean_rad 和相应原因，仅 response 包含方向性 overshoot_rad。指标定义与解释集中在 [教学任务说明](teaching.md#指标与解释)。
+
+initial_position_error_rad 和 initial_velocity_radps 保存本阶段首样本的状态；保持轴的 held_start_in_band 按现有位置、速度统计误差带标记首样本。false 时摘要提示该轴起始未进入误差带，原始误差指标仍完整保留。该标记只描述起始瞬时状态，不表示已经持续稳定或性能通过。
 
 评价 completed 仅表示数据处理完成。取消或失败时评价状态为 partial，原执行状态不变；完整阶段照常处理，部分阶段不输出完整响应结论。无样本阶段的关节数组为空。时间区间按记录时间划分，误差带持续时间按物理周期计算；时间覆盖检查容许 double 累加舍入误差，不容许缺失周期。
 

@@ -18,11 +18,12 @@ struct Stage {
 
 constexpr std::array kStages{
     Stage{"initialize", 0, kPoseA}, Stage{"multi_axis", 4, kPoseB},
-    Stage{"brief_target", 10, kPoseC}, Stage{"withdraw", 10.2, kPoseA},
-    Stage{"resume_motion", 16, kPoseC}, Stage{"reverse", 16.6, kPoseD},
-    Stage{"coupled_forward", 22, kPoseC}, Stage{"coupled_reverse", 28, kPoseD},
-    Stage{"recover", 34, kPoseA}};
-constexpr double kDuration = 40;
+    Stage{"return_to_a", 10, kPoseA},
+    Stage{"brief_target", 14, kPoseC}, Stage{"withdraw", 14.2, kPoseA},
+    Stage{"resume_motion", 20, kPoseC}, Stage{"reverse", 20.6, kPoseD},
+    Stage{"coupled_forward", 26, kPoseC}, Stage{"coupled_reverse", 32, kPoseD},
+    Stage{"recover", 38, kPoseA}};
+constexpr double kDuration = 44;
 
 JointCommand targetSwitch(double time) {
     for (std::size_t index = kStages.size(); index-- > 0;) {
