@@ -40,6 +40,8 @@ public:
     const std::vector<CaseReport> &reports() const noexcept { return reports_; }
     std::size_t caseIndex() const noexcept { return index_; }
     const JointCommand &lastCommand() const noexcept { return last_command_; }
+    const PhaseSpec *lastPhase() const { return reports_[index_].samples ? phaseAt(spec(), last_sample_time_) : nullptr; }
+    double lastSampleTime() const noexcept { return last_sample_time_; }
     Simulation *simulation() const noexcept { return simulation_.get(); }
 
 private:
@@ -53,6 +55,7 @@ private:
     std::string reason_;
     std::unique_ptr<Simulation> simulation_;
     JointCommand last_command_{};
+    double last_sample_time_{};
 };
 
 } // namespace simlab::benchmark

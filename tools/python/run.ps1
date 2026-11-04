@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true, Position = 0)]
-    [ValidateSet('sync', 'import', 'check', 'render', 'view')]
+    [ValidateSet('sync', 'import', 'check', 'render', 'view', 'evaluate')]
     [string]$Command,
 
     [Parameter(ValueFromRemainingArguments = $true)]
@@ -33,6 +33,9 @@ try {
         }
         'view' {
             & uv run --locked --project $pythonRoot python -B -m tools.python.view_model @ForwardedArguments
+        }
+        'evaluate' {
+            & uv run --locked --project $pythonRoot python -B -m tools.python.benchmark.evaluate @ForwardedArguments
         }
     }
     exit $LASTEXITCODE

@@ -23,7 +23,8 @@ JointCommand jointSine(double time) {
 CaseSpec definition() {
     return {"joint_sine", kDuration,
         {{"joint", "index", 1}, {"duration", "s", kDuration},
-         {"period", "s", kPeriod}, {"coefficient", "rad", kCoefficient}}, jointSine};
+         {"period", "s", kPeriod}, {"coefficient", "rad", kCoefficient}}, jointSine,
+        {{"example_tracking", 0, kDuration, PhaseKind::Tracking, {true, false, false, false, false, false}}}};
 }
 
 } // namespace simlab::benchmark::joint_sine

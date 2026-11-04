@@ -69,6 +69,23 @@ public:
                 ImGui::Text("Steps: %llu / %llu", static_cast<unsigned long long>(report.samples),
                     static_cast<unsigned long long>(report.expected_steps));
                 ImGui::Text("Duration: %.3f s", runner_.spec().duration);
+                if (const auto *phase = runner_.lastPhase()) {
+                    ImGui::Text("Phase: %s (%.*s)", phase->id.c_str(),
+                        static_cast<int>(phaseKindName(phase->kind).size()), phaseKindName(phase->kind).data());
+                    ImGui::Text("Phase time: %.3f / %.3f s", runner_.lastSampleTime() - phase->start, phase->end - phase->start);
+                    ImGui::TextUnformatted("Active joints:");
+                    bool any = false;
+                    for (std::size_t joint = 0; joint < phase->active_joints.size(); ++joint) {
+                        if (!phase->active_joints[joint]) continue;
+                        ImGui::SameLine();
+                        ImGui::Text("J%d", static_cast<int>(joint + 1));
+                        any = true;
+                    }
+                    if (!any) {
+                        ImGui::SameLine();
+                        ImGui::TextUnformatted("None (initialize / hold)");
+                    }
+                } else ImGui::TextUnformatted("Phase: no input sample yet");
                 for (const auto &parameter : runner_.spec().parameters) {
                     ImGui::Text("%s: %.6g %s", parameter.name.c_str(), parameter.value, parameter.unit.c_str());
                 }

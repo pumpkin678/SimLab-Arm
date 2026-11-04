@@ -1,6 +1,6 @@
 # Benchmark 与采集
 
-Benchmark 用代码生成六轴目标位置，通过普通 `Simulation::step(command)` 执行，并按需录制逐周期数据。运行与记录是当前框架的功能；性能指标、阈值和教学评分由具体任务确定。启动命令和参数见 [工具说明](../tools/README.md)。
+Benchmark 用代码生成六轴目标位置，通过普通 `Simulation::step(command)` 执行，并按需录制逐周期数据。Test 选项在录制结束后执行离线评价，输出实测指标；教学通过阈值尚未设置。启动命令和参数见 [工具说明](../tools/README.md)。
 
 ## 工况定义与登记
 
@@ -12,12 +12,15 @@ Benchmark 用代码生成六轴目标位置，通过普通 `Simulation::step(com
 | `duration` | 执行时长，单位 s，要求为正的有限值 |
 | `parameters` | 参数名称、单位和值；名称唯一，值为有限数 |
 | `evaluate(double time)` | 以当前步前仿真时间求六轴 JointCommand，时间单位 s，目标单位 rad |
+| `phases` | 顺序覆盖工况的阶段描述；无阶段的内部契约测试工况不执行局部评价 |
 
 参考只有六轴位置，J1–J6 对应数组下标 0–5。接入层不生成速度、加速度或平滑轨迹；函数输出中的有限越界目标原样传给 Arm，非有限目标由 Simulation 拒绝。
 
 每个工况放在 `benchmark/cases/<ID>/` 中。该目录的 `case.hpp` 声明定义入口，`case.cpp` 保存参数、参考函数和返回完整 CaseSpec 的 `definition()`。公共类型放在 `benchmark/cases/case.hpp`，登记与选择放在 [cases.cpp](../benchmark/cases/cases.cpp)。选择 `all` 时按登记顺序执行，单个 ID 只执行对应项。
 
 新增工况时，在独立目录实现定义入口，将其加入登记列表，并在根 `CMakeLists.txt` 的 benchmark 核心源文件列表加入对应 `.cpp`。参考函数依据传入的仿真时间求值，不以墙钟或渲染帧数计时。预先确定切换时刻的分段参考可以直接按时间区间生成。
+
+阶段使用唯一 ID、起止时间、评价类别及六轴主动标记，区间为左闭右开，连续覆盖工况时长。类别为 initialization、response、hold、tracking。参考函数与元数据复用工况自身的时间和参数；评价脚本不按 case ID 重新生成参考。GUI 显示最近成功周期所属阶段及进度，显示操作不求值参考。
 
 ### 工况示例
 
@@ -50,8 +53,8 @@ Headless 不创建窗口，按计算速度执行，结束后直接收尾退出�
 | 产物 | 内容 |
 | --- | --- |
 | `<case_id>.csv` | 该 case 使用的 trace v1 数据，每项单独保存 |
-| `result.json` | 整体及各 case 的状态、参数和成功周期数 |
-| `run.log` | 启动脚本收集的 stdout、stderr、进程退出码和脚本报告的错误 |
+| `result.json` | 整体及各 case 的状态、参数、阶段和成功周期数；评价后增加指标 |
+| `run.log` | stdout、stderr、进程退出码、错误，以及评价摘要 |
 
 CSV 在 case 完成、取消或失败时尝试刷新。GUI 保留终态画面期间，已成功刷新的 CSV 可读取；最终 `result.json` 在关闭窗口后写入，脚本随后完成日志收集和结果检查。
 
@@ -69,8 +72,22 @@ CSV 在 case 完成、取消或失败时尝试刷新。GUI 保留终态画面期
 | `timestep_s`、`expected_steps` | 实际模型步长和周期预算；尚未取得时为 null |
 | `samples` | Simulation 维护的成功周期数，零样本为 0 |
 | `last_step` | 最后一个成功步号；零样本为 null |
+| `phases` | 阶段的 id、start_s、end_s、kind 和 active_joints；主动关节编号为 1–6 |
+| `evaluation` | 评价入口成功后写入的逐阶段、逐轴结果；普通录制不生成此字段 |
 
 Case 状态使用 `not_started`、`running`、`completed`、`cancelled`、`failed`。正常收尾文件的整体状态为 `completed`、`cancelled` 或 `failed`。在两项之间取消时，前一项仍为 completed，后一项仍为 not_started，整体为 cancelled。
+
+### 离线评价
+
+评价只读取最终结果中的阶段描述和 CSV，校验 trace v1 的完整列序、有限数值、复位段、步号、仿真时间、步长与成功周期数。正常 benchmark 每项只有复位段 0。只有加载前失败或未启动且零样本的项可以没有 CSV。
+
+根 evaluation 保存独立的 format_version、评价状态和统计口径；每个 case 的 evaluation 保存阶段数组，按阶段 ID 对应原始 phases。阶段状态为 completed、partial 或 not_started；初始化阶段标记 excluded，不输出关节指标。无阶段工况标为 not_applicable。
+
+关节结果包含 joint、active/held 角色以及带单位后缀的指标字段，例如 position_error_rms_rad、velocity_peak_abs_radps、request_torque_peak_abs_nm。响应阶段还包含 arrival_time_s、settling_time_s、overshoot_rad、tail_position_error_mean_rad 和相应原因。指标定义与解释集中在 [教学任务说明](teaching.md#指标与解释)。
+
+评价 completed 仅表示数据处理完成。取消或失败时评价状态为 partial，原执行状态不变；完整阶段照常处理，部分阶段不输出完整响应结论。无样本阶段的关节数组为空。时间区间按记录时间划分，误差带持续时间按物理周期计算；时间覆盖检查容许 double 累加舍入误差，不容许缺失周期。
+
+评价成功后原子替换 result.json，仅增加或替换评价字段，允许重新评价。CSV 损坏或评价失败时保留原始执行结果并报告错误；终端和日志摘要使用 deg、deg/s、s、N·m。Test 的执行或评价错误返回 1，参数错误返回 2，正常取消与较差的性能指标不产生非零退出码。
 
 ## 统一 trace v1
 

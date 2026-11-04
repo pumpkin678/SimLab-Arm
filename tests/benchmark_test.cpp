@@ -43,7 +43,8 @@ simlab::JointCommand invalid(double) {
 }
 
 CaseSpec definition(std::string id, double duration = 0.0025) {
-    return {std::move(id), duration, {{"test_value", "rad", 0.25}}, reference};
+    return {std::move(id), duration, {{"test_value", "rad", 0.25}}, reference,
+        {{"controlled", 0, duration, PhaseKind::Tracking, {true, false, false, false, false, false}}}};
 }
 
 Options options(const std::string &model, const std::filesystem::path &output) {
@@ -74,7 +75,7 @@ Options parse(std::vector<std::string> arguments) {
 }
 
 void checkOptions() {
-    require(selectCases("all").size() == 1 && selectCases("joint_sine")[0].id == "joint_sine", "Case selection");
+    require(selectCases("all").size() == 5 && selectCases("joint_sine")[0].id == "joint_sine", "Case selection");
     requireThrows([] { selectCases("missing"); });
     const auto preview = parse({"benchmark"});
     require(!preview.output && !preview.headless && preview.selection == "all", "Preview must not record");
@@ -91,6 +92,55 @@ void checkOptions() {
     require(metadata["parameters"]["period"]["value"] == 4.0, "Case metadata does not use actual parameters");
 }
 
+void checkTeachingCases(const std::string &model) {
+    const auto cases = selectCases("all");
+    const std::array<std::string_view, 5> ids{"joint_sine", "posture_hold", "joint_step", "joint_tracking", "target_switch"};
+    const std::array<double, 5> durations{8, 18, 64, 52, 40};
+    simlab::Simulation simulation(model);
+    const auto &ranges = simulation.model();
+    for (std::size_t index = 0; index < cases.size(); ++index) {
+        const auto &spec = cases[index];
+        require(spec.id == ids[index] && spec.duration == durations[index], "Teaching suite order/duration");
+        require(!spec.phases.empty() && spec.phases.front().start == 0 && spec.phases.back().end == spec.duration,
+            "Missing phase coverage");
+        Runner validated(Options{}, {spec});
+        require(validated.result()["cases"][0]["phases"].size() == spec.phases.size(), "Phase metadata serialization");
+        for (const auto &phase : spec.phases) {
+            require(phaseAt(spec, phase.start) == &phase, "Phase start must be inclusive");
+            require(phaseAt(spec, std::nextafter(phase.end, phase.start)) == &phase, "Phase end must be exclusive");
+        }
+        require(phaseAt(spec, spec.duration) == nullptr, "Case end is outside the last phase");
+        for (double time = 0; time < spec.duration; time += 0.01) {
+            const auto target = spec.evaluate(time);
+            for (std::size_t joint = 0; joint < 6; ++joint) {
+                const auto name = "joint" + std::to_string(joint + 1);
+                const int id = mj_name2id(&ranges, mjOBJ_JOINT, name.c_str());
+                require(std::isfinite(target.position[joint]) && target.position[joint] >= ranges.jnt_range[2 * id] &&
+                    target.position[joint] <= ranges.jnt_range[2 * id + 1], "Teaching target outside model range");
+            }
+        }
+    }
+    constexpr double radians = 3.14159265358979323846 / 180;
+    const auto near = [](float actual, double expected) { return std::abs(actual - expected) <= 2e-7; };
+    require(near(cases[0].evaluate(0).position[0], 0) && near(cases[0].evaluate(2).position[0], -30 * radians) &&
+        near(cases[0].evaluate(4).position[0], 0), "Original sine reference changed");
+    require(near(cases[1].evaluate(6).position[2], -90 * radians), "Posture transition");
+    require(near(cases[2].evaluate(4).position[0], -10 * radians) &&
+        near(cases[2].evaluate(6).position[0], -20 * radians) &&
+        near(cases[2].evaluate(14).position[1], 50 * radians), "Single-axis step schedule");
+    require(near(cases[3].evaluate(5).position[0], -5 * radians) &&
+        near(cases[3].evaluate(8.25).position[0], -5 * radians), "Slow/fast tracking periods");
+    require(near(cases[4].evaluate(10).position[5], 120 * radians) &&
+        near(cases[4].evaluate(10.2).position[5], 0) &&
+        near(cases[4].evaluate(16.6).position[5], -120 * radians), "Retarget timing");
+    auto invalid_phase = definition("invalid_phase");
+    invalid_phase.phases[0].start = 0.001;
+    requireThrows([&] { Runner invalid_runner(Options{}, {invalid_phase}); });
+    invalid_phase.phases[0].start = 0;
+    invalid_phase.phases[0].end = 0.001;
+    requireThrows([&] { Runner invalid_runner(Options{}, {invalid_phase}); });
+}
+
 std::vector<Call> runBatched(const std::string &model, const std::filesystem::path &directory, int batch) {
     const int before_resets = resets;
     Runner runner(options(model, directory), {definition("first"), definition("second", 0.002)});
@@ -104,6 +154,11 @@ std::vector<Call> runBatched(const std::string &model, const std::filesystem::pa
         }
         runner.result();
         runner.lastCommand();
+        if (runner.reports()[runner.caseIndex()].samples) {
+            require(runner.lastPhase() && runner.lastPhase()->id == "controlled" &&
+                runner.lastSampleTime() == runner.simulation()->data().time - runner.reports()[runner.caseIndex()].timestep,
+                "Displayed phase is not the last committed sample");
+        }
         require(evaluations == static_cast<int>(calls.size()), "Display/report reevaluates reference");
         for (int index = 0; index < batch && !runner.terminal() && !runner.caseComplete(); ++index) runner.advanceOneCycle();
     }
@@ -193,6 +248,7 @@ int main(int argc, char **argv) {
             std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
         require(std::filesystem::create_directories(directory), "Output already exists");
         checkOptions();
+        checkTeachingCases(argv[1]);
         const auto single = runBatched(argv[1], directory / "single", 1);
         const auto batched = runBatched(argv[1], directory / "batched", 7);
         require(single.size() == batched.size(), "Batch count mismatch");

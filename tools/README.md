@@ -71,6 +71,10 @@ git submodule update --init --recursive
 ./tools/benchmark.ps1 -Case joint_sine -Record
 # 无窗口录制，指定新的输出目录
 ./tools/benchmark.ps1 -Case joint_sine -Headless -OutputDirectory "temp/benchmark/session 01"
+# 正式评价，录制结束后自动计算指标
+./tools/benchmark.ps1 -Headless -Test
+# GUI 定位具体工况；关闭窗口后评价
+./tools/benchmark.ps1 -Case joint_step -Test
 ```
 
 | 参数 | 用途 |
@@ -80,11 +84,12 @@ git submodule update --init --recursive
 | `-Case <ID或all>` | 选择单个已登记工况，默认 all |
 | `-Record` | GUI 模式下开启录制 |
 | `-Headless` | 不创建窗口，自动开启录制，执行结束后退出 |
-| `-OutputDirectory <路径>` | 指定新的录制目录，必须与 Record 或 Headless 一起使用 |
+| `-Test` | 自动开启录制，进程结束后调用 Python 评价；是否显示窗口仍由 Headless 决定 |
+| `-OutputDirectory <路径>` | 指定新的录制目录，必须与 Record、Headless 或 Test 一起使用 |
 
 预览不保存文件。录制默认在 `temp/benchmark/` 下创建唯一目录，已有输出目录拒绝复用。
 
-录制保存每个 case 的 CSV、一份 `result.json` 和一份 `run.log`；GUI 录制在关闭窗口后完成结果收尾。执行与数据含义见 [Benchmark 与采集](../docs/benchmark.md)。
+录制保存每个 case 的 CSV、一份 `result.json` 和一份 `run.log`；GUI 录制在关闭窗口后完成结果收尾。Test 需要先准备 [Python 工具环境](python/README.md)，评价数值写回 result.json，摘要追加 run.log。不使用 Test 时无需 Python。执行与数据含义见 [Benchmark 与采集](../docs/benchmark.md)。
 
 ## 自动测试
 
@@ -93,7 +98,7 @@ git submodule update --init --recursive
 ./tools/scripts/test.ps1 -Configuration Debug
 ```
 
-运行已编译版本的 `trace` 和 `benchmark_contract` 两项检查。测试产物位于 `build/ninja/<toolchain>/<Configuration>/test-output/`。
+运行已编译版本的 `trace` 和 `benchmark_contract` 两项检查，后者需要 Python 工具环境。测试产物位于 `build/ninja/<toolchain>/<Configuration>/test-output/`。
 
 ## Python 工具
 

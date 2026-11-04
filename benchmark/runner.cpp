@@ -46,6 +46,20 @@ Runner::Runner(Options options, std::vector<CaseSpec> cases)
                 throw std::invalid_argument("Invalid or duplicate case parameter.");
             }
         }
+        std::set<std::string> phase_ids;
+        double end = 0;
+        for (const auto &phase : definition.phases) {
+            if (phase.id.empty() || !phase_ids.insert(phase.id).second ||
+                !std::isfinite(phase.start) || !std::isfinite(phase.end) ||
+                phase.start != end || phase.end <= phase.start || phase.end > definition.duration) {
+                throw std::invalid_argument("Invalid benchmark phase timeline.");
+            }
+            phaseKindName(phase.kind);
+            end = phase.end;
+        }
+        if (!definition.phases.empty() && end != definition.duration) {
+            throw std::invalid_argument("Benchmark phases must cover the case duration.");
+        }
         if (options_.output && std::filesystem::exists(*options_.output / (definition.id + ".csv"))) {
             throw std::invalid_argument("Refusing to overwrite benchmark trace: " + definition.id);
         }
@@ -58,6 +72,7 @@ void Runner::startNext() {
     else if (reports_[index_].status != Outcome::NotStarted) throw std::logic_error("Current case is unfinished.");
     simulation_.reset();
     last_command_ = {};
+    last_sample_time_ = 0;
     auto &report = reports_[index_];
     report.status = Outcome::Running;
     try {
@@ -85,9 +100,11 @@ void Runner::advanceOneCycle() {
         throw std::logic_error("No running benchmark case.");
     }
     try {
-        const auto command = spec().evaluate(simulation_->data().time);
+        const double sample_time = simulation_->data().time;
+        const auto command = spec().evaluate(sample_time);
         simulation_->step(command);
         last_command_ = command;
+        last_sample_time_ = sample_time;
         syncSamples();
         auto &report = reports_[index_];
         if (report.samples >= report.expected_steps) {
@@ -165,6 +182,15 @@ nlohmann::json Runner::result() const {
         }
         nlohmann::json entry = {{"id", definition.id}, {"duration_s", definition.duration},
             {"trace", definition.id + ".csv"}, {"parameters", std::move(parameters)}};
+        entry["phases"] = nlohmann::json::array();
+        for (const auto &phase : definition.phases) {
+            std::vector<int> active;
+            for (std::size_t joint = 0; joint < phase.active_joints.size(); ++joint) {
+                if (phase.active_joints[joint]) active.push_back(static_cast<int>(joint + 1));
+            }
+            entry["phases"].push_back({{"id", phase.id}, {"start_s", phase.start}, {"end_s", phase.end},
+                {"kind", phaseKindName(phase.kind)}, {"active_joints", active}});
+        }
         const auto &report = reports_[index];
         entry["status"] = outcomeName(report.status);
         entry["reason"] = report.reason;

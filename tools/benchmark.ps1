@@ -9,7 +9,8 @@ param(
     [ValidateNotNullOrEmpty()]
     [string]$OutputDirectory,
     [switch]$Record,
-    [switch]$Headless
+    [switch]$Headless,
+    [switch]$Test
 )
 
 $ErrorActionPreference = 'Stop'
@@ -29,8 +30,14 @@ function Invoke-BenchmarkRun {
     } else {
         [IO.Path]::GetFullPath((Join-Path $repoRoot $Model))
     }
-    $recording = $Record -or $Headless
-    if ($OutputDirectory -and -not $recording) { throw [ArgumentException]::new('-OutputDirectory requires -Record or -Headless.') }
+    $recording = $Record -or $Headless -or $Test
+    if ($OutputDirectory -and -not $recording) { throw [ArgumentException]::new('-OutputDirectory requires -Record, -Headless or -Test.') }
+    if ($Test) {
+        $uv = Get-Command uv -CommandType Application -ErrorAction SilentlyContinue
+        if (-not $uv) { throw 'Benchmark -Test requires uv and the Python tools environment. See tools/python/README.md.' }
+        & $uv.Source run --locked --project (Join-Path $repoRoot 'tools/python') python -B -c 'import csv, json, math'
+        if ($LASTEXITCODE -ne 0) { throw 'Benchmark Python environment check failed.' }
+    }
     $arguments = @($modelPath, '--case', $Case)
     if (-not $recording) {
         Write-Host 'Benchmark preview: no experiment files will be saved.'
@@ -67,6 +74,14 @@ function Invoke-BenchmarkRun {
         $result = Get-Content -Raw -Encoding UTF8 -LiteralPath $resultPath | ConvertFrom-Json
         if ($result.runtime.configuration -ne $Configuration) { throw 'Executable configuration does not match the selected build.' }
         if ($result.status -notin @('completed', 'cancelled', 'failed')) { throw 'Benchmark returned a nonterminal execution status.' }
+        if ($Test) {
+            $evaluation = Invoke-BenchmarkProcess -FilePath (Get-Process -Id $PID).Path -WorkingDirectory $repoRoot `
+                -Arguments @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
+                    (Join-Path $repoRoot 'tools/python/run.ps1'), 'evaluate', '--run-directory', $output)
+            if ($evaluation.StandardOutput) { Write-Host $evaluation.StandardOutput -NoNewline }
+            if ($evaluation.StandardError) { Write-Host $evaluation.StandardError -NoNewline }
+            if ($evaluation.ExitCode -ne 0) { throw "Benchmark evaluation failed (exit $($evaluation.ExitCode)); execution exit code: $($process.ExitCode)." }
+        }
         if ($process.ExitCode -ne 0 -or $result.status -eq 'failed') { throw "Benchmark failed; preserve this run and inspect $log." }
     } catch {
         try { [IO.File]::AppendAllText($log, $_.Exception.Message + [Environment]::NewLine, $encoding) } catch { }
