@@ -56,7 +56,7 @@ void Simulation::step(const JointCommand &command) {
         }
         const auto feedback = adapter_->readFeedback(*data_);
         const auto context = adapter_->readContext(*data_);
-        const auto result = arm_.update(feedback, command, context);
+        auto result = arm_.update(feedback, command, context);
         adapter_->writeTorques(*data_, result.torques);
         mj_step(model_.get(), data_.get());
         mj_forward(model_.get(), data_.get());
@@ -69,6 +69,10 @@ void Simulation::step(const JointCommand &command) {
         }
         if (std::abs(data_->time - time - model_->opt.timestep) > 1e-7) {
             throw std::runtime_error("Unexpected simulation time change during physics step.");
+        }
+        for (std::size_t index = 0; index < applied.size(); ++index) {
+            result.torque_saturated[index] = result.torque_saturated[index] ||
+                std::abs(result.torques[index] - applied[index]) > 1e-4f;
         }
         if (trace_) trace_->write(steps_, time, context, command, feedback, result, applied);
         result_ = result;

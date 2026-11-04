@@ -182,6 +182,7 @@ void checkSimulation(const std::string &model, const std::filesystem::path &dire
     simulation.lastTorques();
     require(updates == calls && simulation.stepCount() == 0, "Readout advances simulation");
     next_result.torques = {25.125F, -85.25F, 3.375F, -4.5F, 11.625F, -3.75F};
+    next_result.torque_saturated[0] = true;
     const simlab::JointCommand command{{std::nextafter(0.1F, 1.0F), 0.2F, -0.3F, 0.4F, -0.5F, 0.6F}};
     simulation.step(command);
     simulation.flushTrace();
@@ -204,15 +205,24 @@ void checkSimulation(const std::string &model, const std::filesystem::path &dire
             static_cast<float>(simulation.model().actuator_forcerange[2 * motor]),
             static_cast<float>(simulation.model().actuator_forcerange[2 * motor + 1]));
         require(simulation.lastTorques()[index] == limited, "Applied torque not limited by model");
+        require(simulation.result().torque_saturated[index] ==
+            (next_result.torque_saturated[index] || std::abs(next_result.torques[index] - limited) > 1e-4F),
+            "Business and model saturation flags were not merged");
     }
+    next_result = {};
+    simulation.step({});
+    require(simulation.result().torque_saturated == std::array<bool, 6>{}, "Saturation flags were latched");
+    next_result.torque_saturated.fill(true);
+    simulation.step({});
     simulation.reset();
     simulation.reset();
     require(simulation.stepCount() == 0 && simulation.data().time == 0, "Reset cycle clock");
+    require(simulation.result().torque_saturated == std::array<bool, 6>{}, "Reset retained saturation flags");
     next_result = {};
     simulation.step({});
     simulation.flushTrace();
     const auto reset_rows = readCsv(path);
-    require(reset_rows.size() == 2 && reset_rows.back().at("reset_index") == "2" &&
+    require(reset_rows.size() == 4 && reset_rows.back().at("reset_index") == "2" &&
         reset_rows.back().at("step_index") == "0", "Empty reset segments or first step changed");
 }
 
@@ -270,16 +280,19 @@ void checkFailures(const std::string &model, const std::filesystem::path &direct
     for (const auto failure : {Fault::TimeReset, Fault::NumericalWarning}) {
         simulation.reset();
         fault = Fault::None;
+        next_result.torque_saturated.fill(true);
         simulation.step({});
         const auto successful = simulation.stepCount();
-        const auto result = simulation.result().torques;
+        const auto result = simulation.result();
+        next_result.torque_saturated.fill(false);
         fault = failure;
         fault_data = &simulation.data();
         requireThrows([&] { simulation.step({}); });
         fault = Fault::None;
         fault_data = nullptr;
         requireZeroControl(simulation);
-        require(simulation.stepCount() == successful && simulation.result().torques == result,
+        require(simulation.stepCount() == successful && simulation.result().torques == result.torques &&
+            simulation.result().torque_saturated == result.torque_saturated,
             "Failed engine cycle was published");
     }
     simulation.flushTrace();

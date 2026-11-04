@@ -77,7 +77,7 @@ git submodule update --init --recursive
 | --- | --- |
 | `-Configuration Debug` | 使用 Debug 版本，默认 Release |
 | `-Model <路径>` | 指定模型，相对路径按仓库根目录解析 |
-| `-Case <ID或all>` | 选择单个已登记工况，默认 all；当前只登记 joint_sine |
+| `-Case <ID或all>` | 选择单个已登记工况，默认 all |
 | `-Record` | GUI 模式下开启录制 |
 | `-Headless` | 不创建窗口，自动开启录制，执行结束后退出 |
 | `-OutputDirectory <路径>` | 指定新的录制目录，必须与 Record 或 Headless 一起使用 |

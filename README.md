@@ -22,7 +22,7 @@ Copy-Item tools/config.example.json tools/config.local.json
 ./tools/benchmark.ps1
 ```
 
-benchmark 默认打开 GUI 并自动执行已登记工况，预览时不保存文件。当前只有 `joint_sine` 接入示例；录制、headless 和测试命令见 [编译与运行说明](tools/README.md)。
+benchmark 默认打开 GUI 并自动执行已登记工况，预览时不保存文件。录制、headless 和测试命令见 [编译与运行说明](tools/README.md)。
 
 ## 窗口操作
 
@@ -37,6 +37,8 @@ benchmark 默认打开 GUI 并自动执行已登记工况，预览时不保存�
 | Esc / 关闭窗口 | 退出 | 退出并完成结果收尾 |
 
 普通应用的 Reference 面板可编辑 J1–J6 目标角度，支持滑条和 Ctrl+单击数值输入；暂停时也可编辑。有位置限位的关节按模型范围限制编辑，无位置限位的关节使用数值输入。右侧读数显示仿真时间、关节角度、角速度和实际输出力矩，界面单位为 deg、deg/s、N·m。
+
+普通应用和 benchmark 中，饱和关节的实际力矩读数显示为橙色，悬停提示 `Torque limited`。提示显示最近成功周期的状态；暂停时保留，解除饱和后恢复正常颜色，普通应用 Reset 时清除。
 
 Benchmark GUI 显示工况参数、执行进度和最近成功步进使用的参考目标，目标不可编辑。执行结束或取消后保留可用场景供查看，关闭窗口完成进程收尾。
 

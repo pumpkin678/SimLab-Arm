@@ -19,21 +19,15 @@ Benchmark 用代码生成六轴目标位置，通过普通 `Simulation::step(com
 
 新增工况时，在独立目录实现定义入口，将其加入登记列表，并在根 `CMakeLists.txt` 的 benchmark 核心源文件列表加入对应 `.cpp`。参考函数依据传入的仿真时间求值，不以墙钟或渲染帧数计时。预先确定切换时刻的分段参考可以直接按时间区间生成。
 
-### joint_sine
+### 工况示例
 
-当前唯一登记项为 [joint_sine](../benchmark/cases/joint_sine/case.cpp)。它从现有零位开始执行 8 s，周期为 4 s；J2–J6 恒为零，J1 使用以下函数，其中 t 以秒计：
-
-```text
-q1(t) = -π/12 × [1 - cos(2πt / 4)]  rad
-```
-
-J1 在 0° 与 −30° 之间往返。时长、周期、系数和作用关节随 CaseSpec 参数写入结果。该工况用于演示参考接入，不代表真实操作者输入，也未被确定为正式教学验收工况。
+[joint_sine](../benchmark/cases/joint_sine/case.cpp) 展示如何通过代码生成关节目标。具体轨迹及参数以工况定义为准，执行时长和已声明的参数写入 `result.json`。教学任务与验收要求见 [教学任务说明](teaching.md)。
 
 ## 执行与结束
 
 GUI 和 headless 共用 [Runner](../benchmark/runner.hpp)。每个 case 创建新的 Simulation，从模型零位、零速度和新 Arm 状态开始。Runner 按 `ceil(duration / model_timestep)` 计算周期预算，实际进度读取 `Simulation::stepCount()`。
 
-每个周期在步前以当前 MuJoCo 时间求值一次参考，再调用一次正常物理步进。每步完整推进模型步长，不截短最后一个周期。在默认 1 ms 步长下，joint_sine 执行 8000 步，采样时刻约为 0–7.999 s，步进结束后的仿真时间约为 8 s。
+每个周期在步前以当前 MuJoCo 时间求值一次参考，再调用一次正常物理步进。每步完整推进模型步长，不截短最后一个周期；预计周期数、实际周期数和步长写入结果。
 
 GUI 自动开始，支持 Space 暂停／恢复、Backspace 取消，Esc 或关闭窗口退出。暂停和最小化不推进参考时间；恢复时清除墙钟积压。参考不可编辑，显示的目标是最近成功步进使用的值，显示操作不额外调用参考函数。
 
@@ -84,6 +78,8 @@ Case 状态使用 `not_started`、`running`、`completed`、`cancelled`、`faile
 
 输入、位置与速度反馈直接取本次 `Arm::update()` 使用的局部值，请求力矩取本次返回结果。行时间是步前 MuJoCo 时间；实际力矩取本步 `mj_step()` 和 `mj_forward()` 之后的引擎输出，与 `lastTorques()` 一致。分析同一行时，应把它理解为步前输入／反馈与本次输出的配对。
 
+`input` 保存外部原始目标，内部规划位置与速度不在 trace v1 中。它可用于评价从原始输入到实际运动的整体表现，但不能单独分离规划误差与控制器跟随误差。
+
 CSV 固定为 35 列，以下序号从 1 开始，各组六轴字段均按 J1–J6 排列，N 表示 1–6：
 
 | 列序号 | 字段 | 含义与单位 |
@@ -100,6 +96,8 @@ CSV 固定为 35 列，以下序号从 1 开始，各组六轴字段均按 J1–
 | 30–35 | `applied_jN_torque_nm` | 引擎实际电机力矩，N·m |
 
 仿真时间以 double 往返精度写入，dt 和六轴业务数值按原 float 往返精度写入，使用标准小数点。复位段号和步号使用 uint64。请求力矩与实际力矩分开保存，模型的力矩限幅可能使两者不同。
+
+`request` 是 Arm 返回的请求，可能已经经过业务限幅，因此与 `applied` 相同并不表示没有饱和。`CycleResult::torque_saturated` 不写入 trace v1；该标记的发布契约见 [架构说明](architecture.md#控制周期与接口)。
 
 ### 复位与刷新
 

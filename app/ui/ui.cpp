@@ -115,7 +115,8 @@ UiActions Ui::buildControls(bool paused, JointCommand &target, const JointPositi
 }
 
 bool Ui::buildReadouts(
-    const JointFeedback &feedback, const JointTorques &torques, float time, bool paused) {
+    const JointFeedback &feedback, const CycleResult &result,
+    const JointTorques &torques, float time, bool paused) {
     if (scene_size_.width == framebuffer_size_.width) return false;
     ImGui::Text("State: %s", paused ? "Paused" : "Running");
     ImGui::Text("Time: %.3f s", time);
@@ -138,7 +139,13 @@ bool Ui::buildReadouts(
                 ImGui::TableSetColumnIndex(2);
                 ImGui::Text("% .3f", feedback.velocity[index] * kRadiansToDegrees);
                 ImGui::TableSetColumnIndex(3);
+                const bool saturated = result.torque_saturated[index];
+                if (saturated) ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.65f, 0.15f, 1.0f));
                 ImGui::Text("% .3f", torques[index]);
+                if (saturated) {
+                    ImGui::PopStyleColor();
+                    ImGui::SetItemTooltip("Torque limited");
+                }
             }
             ImGui::EndTable();
         }

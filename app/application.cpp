@@ -52,7 +52,7 @@ void Application::run() {
         advanceSimulation(actions.reset || actions.toggle_pause);
 
         if (ui_.buildReadouts(
-            simulation_.readFeedback(), simulation_.lastTorques(), simulation_.time(), paused_)) {
+            simulation_.readFeedback(), simulation_.result(), simulation_.lastTorques(), simulation_.time(), paused_)) {
             renderer_.resetCamera();
         }
         ui_.endPanel();

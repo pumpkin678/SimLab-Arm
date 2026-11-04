@@ -8,7 +8,7 @@
 | [benchmark](../benchmark/) | 工况定义与选择、Runner、启动选项及独立 GUI；`cases/` 按工况组织代码，`ui/` 组织运行面板 |
 | [core](../core/) | GLFW 窗口、输入事件、MuJoCo 场景渲染和相机操作 |
 | [simulation](../simulation/) | 持有模型、数据、ArmAdapter、Arm 和可选 TraceWriter，完成一次业务调用、物理步进及记录 |
-| [simulation/arm](../simulation/arm/) | 定义机械臂输入输出类型，提供成员实现规划和控制的 Arm 骨架 |
+| [simulation/arm](../simulation/arm/) | 定义机械臂输入输出类型，通过 Arm 入口执行机械臂业务并管理算法状态 |
 | [assets](../assets/README.md) | 定义机器人几何、惯量、关节、驱动和接触参数 |
 | [tools](../tools/README.md) | 提供构建、运行和离线模型工具 |
 
@@ -44,6 +44,7 @@ flowchart LR
 | `ArmContext::time` | 步前仿真时间 | s |
 | `ArmContext::dt` | 本次业务调用的模型步长 | s |
 | `CycleResult::torques` | 六轴请求力矩，类型为 JointTorques | N·m |
+| `CycleResult::torque_saturated` | 六轴力矩饱和标记 | bool |
 
 [Arm](../simulation/arm/arm.hpp) 提供以下入口：
 
@@ -60,7 +61,9 @@ void reset();
 
 [ArmAdapter](../simulation/adapter.hpp) 按 `joint1`–`joint6`、`motor1`–`motor6` 绑定反馈地址和执行器，要求六个转动关节与六个对应电机。`Simulation::step()` 检查步前状态，读取反馈和上下文，调用 Arm，写入全部六路请求力矩，执行一次 `mj_step`，再用 `mj_forward` 更新当前姿态和输出。
 
-力矩限幅由 MJCF 的电机配置执行。`lastTorques()` 返回限幅后的实际电机输出，供 UI 显示。关节限位、重力和接触同样由 MuJoCo 根据模型计算，参数见 [资产说明](../assets/README.md)。
+`CycleResult::torques` 是 Arm 交给引擎的请求力矩，可能已经经过业务限幅。MJCF 电机配置仍可进一步限制输出；`lastTorques()` 返回引擎实际电机输出。关节限位、重力和接触同样由 MuJoCo 根据模型计算，参数见 [资产说明](../assets/README.md)。
+
+Arm 在 `torque_saturated` 中报告业务侧饱和。Simulation 根据请求力矩与引擎实际输出的差异合并模型限幅状态，随成功周期结果一起发布，供共用 UI 读取。标记不影响控制计算，失败周期不发布新标记，Reset 清零。
 
 数值检查和可选 trace 写入成功后，Simulation 才发布本周期 `CycleResult`、实际力矩并推进 `stepCount()`。Trace 复用本次调用的局部输入、反馈和结果，不重新生成参考。采样时点和字段见 [Benchmark 与采集](benchmark.md)。
 
@@ -68,7 +71,7 @@ void reset();
 
 ## 调度与复位
 
-GUI 在一个线程中处理输入、控制周期和渲染。普通应用与 benchmark GUI 累计墙钟时间，每累计一个模型步长就执行一次完整物理周期。默认模型步长为 1 ms，GUI 目标速度为 1×；一次渲染帧内可以执行多个周期。Headless 按计算速度推进 Runner，参考时间始终来自仿真。
+GUI 在一个线程中处理输入、控制周期和渲染。普通应用与 benchmark GUI 累计墙钟时间，每累计一个模型步长就执行一次完整物理周期。GUI 目标速度为 1×，一次渲染帧内可以执行多个周期。Headless 按计算速度推进 Runner，参考时间始终来自仿真。
 
 - 每次创建 Simulation 时恢复模型的 `zero` keyframe 并调用 `Arm::reset()`。普通应用零目标、暂停启动；benchmark 自动开始。
 - 暂停时停止控制计算和物理步进，窗口及视角仍可操作。
@@ -77,12 +80,8 @@ GUI 在一个线程中处理输入、控制周期和渲染。普通应用与 ben
 - Benchmark 通过取消结束本次实验，不提供 Reset 重跑。不同 case 使用各自的新 Simulation，进度读取 Simulation 的成功步数；执行细节见 [Benchmark 与采集](benchmark.md)。
 - 相机复位仅调整视角。
 
-## 显示
+## 显示与输入分流
 
-UI 先收集运行和复位操作，完成本帧物理周期后，再读取最新状态构建读数。渲染器使用同一份 MuJoCo 模型和数据绘制场景。
+UI 先收集运行和复位操作，完成本帧物理周期后，再读取最新状态构建读数。读取和显示不执行 Arm，也不额外求值 case 参考。渲染器使用同一份 MuJoCo 模型和数据绘制场景；物理数据不可显示时，benchmark 仅展示错误状态。
 
-普通面板提供 Run、Reference、Joints 和 View。手动目标在暂停时也可编辑，恢复后的首个控制周期使用最新值。Benchmark 自己组织运行控制和状态面板，显示最近成功步进使用的目标，不为显示额外求值参考函数。
-
-关节角度和角速度在 UI 中转换为 deg 和 deg/s，控制接口始终使用 SI 单位。渲染默认隐藏碰撞几何，可显示各关节的坐标系。Benchmark 失败后保留可显示的场景；物理数据不可显示时仅展示错误状态。
-
-面板宽度上限为 560，窗口缩小时优先保留 320 的场景宽度，面板内容可滚动。输入按场景和面板区域分流，面板操作由 UI 消费，场景拖动和滚轮操作交给相机。
+普通应用和 benchmark 共用关节读数与渲染，各自组织运行控制。输入按场景和面板区域分流，面板操作由 UI 消费，场景拖动和滚轮操作交给相机。窗口操作及读数含义见 [首页](../README.md#窗口操作)。

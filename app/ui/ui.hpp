@@ -25,7 +25,8 @@ public:
     void endPanel();
     UiActions buildControls(bool paused, JointCommand &target, const JointPositionLimits &limits);
     bool buildReadouts(
-        const JointFeedback &feedback, const JointTorques &torques, float time, bool paused);
+        const JointFeedback &feedback, const CycleResult &result,
+        const JointTorques &torques, float time, bool paused);
     void draw();
     WindowSize sceneSize() const noexcept { return scene_size_; }
     bool captures(const InputEvent &event) const;

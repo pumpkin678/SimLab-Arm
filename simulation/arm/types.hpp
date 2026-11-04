@@ -23,6 +23,7 @@ struct ArmContext {
 
 struct CycleResult {
     JointTorques torques{};
+    std::array<bool, 6> torque_saturated{}; // Business or model torque limit reached.
 };
 
 } // namespace simlab

@@ -84,7 +84,7 @@ public:
                 } else ImGui::TextUnformatted("No input sample yet");
                 if (usable) {
                     const auto &simulation = *runner_.simulation();
-                    if (ui_.buildReadouts(simulation.readFeedback(), simulation.lastTorques(),
+                    if (ui_.buildReadouts(simulation.readFeedback(), simulation.result(), simulation.lastTorques(),
                         simulation.time(), paused_ || runner_.terminal()) && renderer_) renderer_->resetCamera();
                 } else ImGui::TextWrapped("No valid physical state is available for display.");
             }
