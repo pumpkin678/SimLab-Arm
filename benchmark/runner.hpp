@@ -18,6 +18,9 @@ struct CaseReport {
     std::uint64_t expected_steps{};
     double timestep{};
     std::optional<JointTorqueLimits> torque_limits;
+    std::optional<JointSpeedLimits> speed_limits;
+    std::optional<std::array<float, 6>> final_velocity;
+    double final_time{};
     std::string reason;
 };
 
@@ -47,6 +50,7 @@ public:
 
 private:
     void syncSamples();
+    void captureFinalVelocity();
 
     Options options_;
     std::vector<CaseSpec> cases_;

@@ -84,6 +84,9 @@ def build_data(directory, result):
             phase_series = []
             for joint in range(6):
                 preserve = [phase["start_s"], phase["end_s"]]
+                speeds = case["evaluation"].get("speed", {}).get("joints", [])
+                if speeds:
+                    preserve += [speeds[joint]["speed_peak_abs_time_s"], speeds[joint]["first_overspeed_time_s"]]
                 if measured["joints"]:
                     metrics = measured["joints"][joint]
                     preserve += [phase["start_s"] + metrics[key] for key in ("arrival_time_s", "settling_time_s")

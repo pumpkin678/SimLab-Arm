@@ -91,6 +91,8 @@ void checkOptions() {
     const auto metadata = runner.result()["cases"][0];
     require(metadata["parameters"]["period"]["value"] == 4.0, "Case metadata does not use actual parameters");
     require(metadata["torque_limits_nm"].is_null(), "Unstarted case invented torque limits");
+    require(metadata["speed_limits_radps"].is_null() && metadata["final_velocity_sample"].is_null(),
+        "Unstarted case invented speed coverage");
 }
 
 void checkTeachingCases(const std::string &model) {
@@ -197,6 +199,10 @@ std::vector<Call> runBatched(const std::string &model, const std::filesystem::pa
         result["cases"][1]["last_step"] == 1 && result["cases"][0]["parameters"]["test_value"]["unit"] == "rad",
         "Result/parameters do not match actual execution");
     require(result["cases"][0]["torque_limits_nm"].size() == 6, "Missing recorded model torque limits");
+    require(result["cases"][0]["speed_limits_radps"].size() == 6 &&
+        result["cases"][0]["final_velocity_sample"]["time_s"] == 0.003 &&
+        result["cases"][1]["final_velocity_sample"]["time_s"] == 0.002,
+        "Final speed samples did not survive case replacement");
     for (std::size_t joint = 0; joint < 6; ++joint) {
         const auto &limit = runner.simulation()->torqueLimits()[joint];
         const auto recorded = result["cases"][0]["torque_limits_nm"][joint];
@@ -210,6 +216,45 @@ std::vector<Call> runBatched(const std::string &model, const std::filesystem::pa
     requireThrows([&] { runner.writeResult(); });
     requireThrows([&] { Runner duplicate(options(model, directory), {definition("first")}); });
     return calls;
+}
+
+void checkSpeedCoverage(const std::string &model_path, const std::filesystem::path &directory) {
+    Runner runner(options(model_path, directory), {definition("fast", 0.001), definition("after_fast", 0.001)});
+    runner.startNext();
+    auto &simulation = *runner.simulation();
+    const auto &model = simulation.model();
+    const int numeric = mj_name2id(&model, mjOBJ_NUMERIC, "joint_speed_limits_radps");
+    require(numeric >= 0 && simulation.speedLimits().has_value(), "Missing joint speed metadata");
+    const std::array<double, 6> rpm{36, 40, 36, 120, 120, 150};
+    for (std::size_t joint = 0; joint < rpm.size(); ++joint) {
+        require(std::abs((*simulation.speedLimits())[joint] - rpm[joint] * 2 * std::acos(-1.0) / 60) < 1e-12,
+            "Speed metadata is not in joint-output rad/s, J1-J6 order");
+    }
+    const int address = model.numeric_adr[numeric];
+    const double saved = model.numeric_data[address];
+    for (double invalid : {0.0, -1.0, std::numeric_limits<double>::quiet_NaN()}) {
+        model.numeric_data[address] = invalid;
+        requireThrows([&] { simlab::ArmAdapter adapter(model); });
+    }
+    model.numeric_data[address] = saved;
+    model.numeric_size[numeric] = 5;
+    requireThrows([&] { simlab::ArmAdapter adapter(model); });
+    model.numeric_size[numeric] = 6;
+
+    simulation.data().qvel[5] = (*simulation.speedLimits())[5] * 2;
+    runner.advanceOneCycle();
+    const auto recorded = runner.result()["cases"][0];
+    require(recorded["samples"] == 1 && recorded["final_velocity_sample"]["time_s"] == simulation.data().time,
+        "Missing last physical endpoint");
+    require(recorded["final_velocity_sample"]["velocity_radps"][5] == simulation.readFeedback().velocity[5] &&
+        std::abs(simulation.readFeedback().velocity[5]) > (*simulation.speedLimits())[5],
+        "Speed metadata clipped physical velocity or recorded step-start feedback");
+    require(runner.caseComplete() && !runner.terminal(), "Overspeed stopped benchmark execution");
+    runner.startNext();
+    runner.advanceOneCycle();
+    require(runner.outcome() == Outcome::Completed && runner.result()["cases"][0]["final_velocity_sample"] ==
+        recorded["final_velocity_sample"], "Overspeed prevented subsequent case or lost its endpoint");
+    runner.writeResult();
 }
 
 void checkCancellation(const std::string &model, const std::filesystem::path &directory) {
@@ -288,6 +333,7 @@ int main(int argc, char **argv) {
                 single[index].context.time == batched[index].context.time, "Frame batch changes execution");
         }
         checkCancellation(argv[1], directory / "cancel");
+        checkSpeedCoverage(argv[1], directory / "speed");
         checkFailure(argv[1], directory / "failure");
         std::cout << "PASS benchmark contract: metadata, selection, fresh cases, batch equivalence, cancellation, failure and result lifecycle\n";
         return 0;

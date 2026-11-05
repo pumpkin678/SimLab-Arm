@@ -81,6 +81,8 @@ void Runner::startNext() {
         simulation_ = std::make_unique<Simulation>(options_.model, trace);
         report.timestep = simulation_->model().opt.timestep;
         report.torque_limits = simulation_->torqueLimits();
+        report.speed_limits = simulation_->speedLimits();
+        captureFinalVelocity();
         const double steps = std::ceil(spec().duration / report.timestep);
         if (!std::isfinite(steps) || steps >= static_cast<double>(std::numeric_limits<std::uint64_t>::max())) {
             throw std::runtime_error("Case requires too many physics steps.");
@@ -96,6 +98,12 @@ void Runner::syncSamples() {
     if (simulation_) reports_[index_].samples = simulation_->stepCount();
 }
 
+void Runner::captureFinalVelocity() {
+    auto &report = reports_[index_];
+    report.final_time = simulation_->data().time;
+    report.final_velocity = simulation_->readFeedback().velocity;
+}
+
 void Runner::advanceOneCycle() {
     if (terminal() || !simulation_ || reports_[index_].status != Outcome::Running) {
         throw std::logic_error("No running benchmark case.");
@@ -104,6 +112,8 @@ void Runner::advanceOneCycle() {
         const double sample_time = simulation_->data().time;
         const auto command = spec().evaluate(sample_time);
         simulation_->step(command);
+        // Trace v1 records step-start feedback; retain the last successful endpoint too.
+        captureFinalVelocity();
         last_command_ = command;
         last_sample_time_ = sample_time;
         syncSamples();
@@ -200,6 +210,9 @@ nlohmann::json Runner::result() const {
         entry["expected_steps"] = report.expected_steps ? nlohmann::json(report.expected_steps) : nlohmann::json(nullptr);
         entry["timestep_s"] = report.timestep > 0 ? nlohmann::json(report.timestep) : nlohmann::json(nullptr);
         entry["torque_limits_nm"] = nullptr;
+        entry["speed_limits_radps"] = report.speed_limits ? nlohmann::json(*report.speed_limits) : nlohmann::json(nullptr);
+        entry["final_velocity_sample"] = report.final_velocity ?
+            nlohmann::json{{"time_s", report.final_time}, {"velocity_radps", *report.final_velocity}} : nlohmann::json(nullptr);
         if (report.torque_limits) {
             entry["torque_limits_nm"] = nlohmann::json::array();
             for (const auto &limit : *report.torque_limits) {

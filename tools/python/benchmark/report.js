@@ -25,14 +25,16 @@
     const names = {
         position_error_max_abs_rad: "最大位置误差", position_error_rms_rad: "位置误差 RMS",
         velocity_rms_radps: "速度 RMS", overshoot_rad: "超调", settling_time_s: "调节时间",
-        tail_position_error_rms_rad: "末段位置误差 RMS"
+        tail_position_error_rms_rad: "末段位置误差 RMS", speed_peak_abs_radps: "全程峰值速度"
     };
     const reasons = {
         within_limit: "", limit_exceeded: "超出上限", band_not_held_until_end: "未稳定",
         incomplete_phase: "阶段记录不完整", metric_missing: "指标缺失", metric_unavailable: "指标不可用",
         no_target_change: "目标未变化", unsupported_phase_layout: "阶段不支持评测",
         reached: "已到达", settled: "已稳定", band_not_held: "未到达", recorded: "",
-        partial_observation: "部分记录", phase_too_short: "阶段过短"
+        partial_observation: "部分记录", phase_too_short: "阶段过短",
+        speed_limit_exceeded: "实际速度超限", speed_limits_missing: "未记录速度上限",
+        final_velocity_missing: "缺少最终速度样本", incomplete_case: "工况记录不完整", speed_data_missing: "缺少速度记录"
     };
     let ci = 0, pi = 0, ji = 0, syncing = false, generation = 0;
     const text = (tag, value, cls) => {
@@ -52,6 +54,7 @@
     const allChecks = [];
     for (const c of result.cases) for (const p of c.evaluation.phases)
         for (const j of p.joints) allChecks.push(...j.assessment.checks);
+    for (const c of result.cases) allChecks.push(...(c.evaluation.speed?.assessment?.checks || []));
     const badChecks = allChecks.filter(c => c.status === "FAIL" || c.status === "INCOMPLETE");
     const defaultPhase = c => {
         let index = c.evaluation.phases.findIndex(p => p.assessment.status !== "OBSERVE");
@@ -137,12 +140,15 @@
         const c = result.cases[ci], phase = c.phases[pi], measured = c.evaluation.phases[pi];
         const curve = data.series[ci]?.[pi]?.[ji];
         const rows = curve?.rows || [], metrics = measured?.joints[ji];
-        const checks = metrics?.assessment.checks || [];
+        const speedMetrics = c.evaluation.speed?.joints?.[ji];
+        const checks = [...(metrics?.assessment.checks || []),
+            ...(c.evaluation.speed?.assessment?.checks || []).filter(check => check.joint === ji + 1)];
+        const measurements = {...metrics, ...speedMetrics};
         byId("page-error").textContent = "";
         byId("checks").replaceChildren(...checks.map(check => checkRow(check, false)));
         byId("check-section").hidden = !checks.length;
         byId("measurement-section").open = !checks.length;
-        byId("measurement-section").hidden = !metrics;
+        byId("measurement-section").hidden = !metrics && !speedMetrics;
         const fields = [
             ["position_error_mean_rad", "位置误差均值", "rad"], ["position_error_rms_rad", "位置误差 RMS", "rad"],
             ["position_error_max_abs_rad", "最大位置误差", "rad"], ["velocity_rms_radps", "速度 RMS", "rad/s"],
@@ -151,12 +157,15 @@
             ["settling_time_s", "调节时间", "s", "settling_reason"], ["overshoot_rad", "超调", "rad", "overshoot_reason"],
             ["tail_position_error_mean_rad", "末段误差均值", "rad", "tail_reason"],
             ["tail_position_error_rms_rad", "末段误差 RMS", "rad", "tail_reason"],
-            ["initial_position_error_rad", "起始位置误差", "rad"], ["initial_velocity_radps", "起始速度", "rad/s"]
+            ["initial_position_error_rad", "起始位置误差", "rad"], ["initial_velocity_radps", "起始速度", "rad/s"],
+            ["speed_peak_abs_radps", "全程峰值速度", "rad/s"],
+            ["first_overspeed_time_s", "全程首次超速时间", "s"],
+            ["overspeed_duration_s", "全程超速时长（按采样周期累计）", "s"]
         ];
-        byId("measurements").replaceChildren(...fields.filter(([key]) => metrics && key in metrics).map(([key, label, unit, reason]) => {
+        byId("measurements").replaceChildren(...fields.filter(([key]) => key in measurements).map(([key, label, unit, reason]) => {
             const row = text("tr", "");
-            row.append(text("td", label), text("td", display(metrics[key], unit)),
-                text("td", reason ? (reasons[metrics[reason]] ?? metrics[reason] ?? "") : ""));
+            row.append(text("td", label), text("td", display(measurements[key], unit)),
+                text("td", reason ? (reasons[measurements[reason]] ?? measurements[reason] ?? "") : ""));
             return row;
         }));
         byId("case-note").textContent = c.status === "failed" ? c.reason || "运行失败" : "";
@@ -183,6 +192,11 @@
             [trace(4, "实际速度", "#1d8b68", null, "°/s")],
             [trace(5, "请求力矩", "#718298", "dash", "N·m"), trace(6, "实际力矩", "#8d4bb6", null, "N·m")]
         ];
+        const finalVelocity = c.final_velocity_sample;
+        if (finalVelocity && finalVelocity.time_s >= phase.start_s && finalVelocity.time_s <= phase.end_s) {
+            traces[2].push({x: [finalVelocity.time_s], y: [finalVelocity.velocity_radps[ji] * degrees],
+                name: "最终速度", mode: "markers", type: "scatter", marker: {color: "#1d8b68", size: 6}});
+        }
         let range = [phase.start_s, phase.end_s];
         if (focus) range = focus.time_s === null ? focus.window_s :
             [Math.max(phase.start_s, focus.time_s - 0.15), Math.min(phase.end_s, focus.time_s + 0.15)];
@@ -202,6 +216,10 @@
             }
             if (index === 2) {
                 for (const sign of [-1, 1]) hline(sign * result.evaluation.criteria.velocity_band_radps * degrees, "#97a5b7", "dot");
+                const speedLimit = c.speed_limits_radps?.[ji];
+                if (speedLimit !== undefined) {
+                    for (const sign of [-1, 1]) hline(sign * speedLimit * degrees, "#c84949", "dash");
+                }
             }
             const torqueLimit = c.torque_limits_nm?.[ji];
             if (index === 3 && torqueLimit?.limited) {

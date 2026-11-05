@@ -13,7 +13,7 @@ import sys
 import tempfile
 from typing import NamedTuple
 
-from .assessment import assess, checks
+from .assessment import SPEED_TOLERANCE, assess, checks
 
 
 HEADER = ["trace_version", "reset_index", "step_index", "simulation_time_s", "cycle_timestep_s"] + [
@@ -188,6 +188,43 @@ def evaluate_phase(phase, rows, first, last, timestep):
     return report
 
 
+def evaluate_speed(case, rows):
+    """Use every trace boundary plus the final successful endpoint, including initialization."""
+    limits = case.get("speed_limits_radps")
+    if limits is not None:
+        require(isinstance(limits, list) and len(limits) == 6 and
+                all(finite(value) and value > 0 for value in limits), "Invalid joint speed limits")
+    final = case.get("final_velocity_sample")
+    if final is not None:
+        require(isinstance(final, dict) and finite(final.get("time_s")) and final["time_s"] >= 0 and
+                isinstance(final.get("velocity_radps"), list) and len(final["velocity_radps"]) == 6 and
+                all(finite(value) for value in final["velocity_radps"]), "Invalid final velocity sample")
+        expected = rows[-1].time + case["timestep_s"] if rows else 0
+        require(abs(final["time_s"] - expected) <= TIME_TOLERANCE, "Final velocity time does not match recorded cycles")
+    samples = [(row.time, row.velocity) for row in rows]
+    if final is not None:
+        samples.append((final["time_s"], final["velocity_radps"]))
+    end = final["time_s"] if final is not None else (rows[-1].time + case["timestep_s"] if rows else 0)
+    complete = case["status"] == "completed" and final is not None and limits is not None
+    reason = "complete" if complete else ("speed_limits_missing" if limits is None else
+             "final_velocity_missing" if final is None else "incomplete_case")
+    report = {"status": "completed" if complete else "partial", "reason": reason,
+              "samples": len(samples), "window_s": [0, end], "joints": []}
+    for joint in range(6):
+        peak = max(samples, key=lambda sample: abs(sample[1][joint]), default=None)
+        limit = limits[joint] if limits is not None else None
+        exceeded = [sample for sample in samples if limit is not None and abs(sample[1][joint]) > limit + SPEED_TOLERANCE]
+        # Duration counts recorded step-start intervals. A final-only violation has zero
+        # observed interval duration, but is still a failure; no dwell exemption applies.
+        duration = sum(case["timestep_s"] for sample in exceeded if sample[0] < end - TIME_TOLERANCE)
+        report["joints"].append({"joint": joint + 1,
+            "speed_peak_abs_radps": abs(peak[1][joint]) if peak is not None else None,
+            "speed_peak_abs_time_s": peak[0] if peak is not None else None,
+            "first_overspeed_time_s": exceeded[0][0] if exceeded else None,
+            "overspeed_samples": len(exceeded), "overspeed_duration_s": duration})
+    return report
+
+
 def evaluate_run(directory):
     directory = Path(directory).resolve()
     path = directory / "result.json"
@@ -217,13 +254,15 @@ def evaluate_run(directory):
         phases = [evaluate_phase(phase, rows, bisect_left(times, phase["start_s"]),
                                  bisect_left(times, phase["end_s"]), case["timestep_s"])
                   for phase in case["phases"]]
-        case["evaluation"] = {"status": "completed" if case["status"] == "completed" else "partial", "phases": phases}
+        case["evaluation"] = {"status": "completed" if case["status"] == "completed" else "partial",
+                              "phases": phases, "speed": evaluate_speed(case, rows)}
         if not phases:
             case["evaluation"]["status"] = "not_applicable"
     result["evaluation"] = {
         "format_version": 1, "status": "completed" if result["status"] == "completed" else "partial",
         "criteria": {"position_band_rad": POSITION_BAND, "velocity_band_radps": VELOCITY_BAND,
-                     "minimum_hold_s": MINIMUM_HOLD, "tail_duration_s": TAIL_DURATION}}
+                     "minimum_hold_s": MINIMUM_HOLD, "tail_duration_s": TAIL_DURATION,
+                     "speed_tolerance_radps": SPEED_TOLERANCE}}
     assess(result)
     temporary = None
     try:
@@ -253,6 +292,11 @@ def summary(result):
         if case_decision["missing_phases"]:
             lines.append("  Missing phases: " + ", ".join(case_decision["missing_phases"]))
         lines.extend("  " + reason for reason in case_decision["reasons"])
+        for joint in case["evaluation"].get("speed", {}).get("joints", []):
+            if joint["overspeed_samples"]:
+                lines.append(f"  J{joint['joint']} overspeed: peak {math.degrees(joint['speed_peak_abs_radps']):.6g} deg/s; "
+                             f"first {joint['first_overspeed_time_s']:.6g} s; "
+                             f"recorded duration {joint['overspeed_duration_s']:.6g} s; {joint['overspeed_samples']} samples")
         warnings = [(phase["id"], [f"J{joint['joint']}" for joint in phase["joints"] if joint.get("held_start_in_band") is False])
                     for phase in case["evaluation"]["phases"]]
         warnings = [(phase, joints) for phase, joints in warnings if joints]
@@ -271,7 +315,7 @@ def summary(result):
         factor = 180 / math.pi if check["unit"].startswith("rad") else 1
         unit = {"rad": "deg", "rad/s": "deg/s"}.get(check["unit"], check["unit"])
         actual = f"{check['value'] * factor:.6g}" if check["value"] is not None else "n/a"
-        limit = f"{check['limit'] * factor:.6g}"
+        limit = f"{check['limit'] * factor:.6g}" if check["limit"] is not None else "n/a"
         if check["status"] == "FAIL" and check["value"] is not None and actual == limit:
             actual, limit = f"{check['value'] * factor:.17g}", f"{check['limit'] * factor:.17g}"
         lines.append(f"[{check['status']}] {check['case_id']}/{check['phase_id']}/J{check['joint']} "

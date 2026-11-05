@@ -34,7 +34,7 @@ GUI 和 headless 共用 [Runner](../benchmark/runner.hpp)。每个 case 创建�
 
 GUI 自动开始，支持 Space 暂停／恢复、Backspace 取消，Esc 或关闭窗口退出。暂停和最小化不推进参考时间；恢复时清除墙钟积压。参考不可编辑，显示的目标是最近成功步进使用的值，显示操作不额外调用参考函数。
 
-一个 case 完成并刷新 CSV 后，Runner 顺序启动下一项。取消或失败立即停止后续项，未启动项保留 `not_started`。一次启动对应一次实验，R 不重跑；完成、取消或失败后保留可用场景，关闭窗口后收尾。关闭已结束的窗口不会改变已确定的执行状态。
+一个 case 完成并刷新 CSV 后，Runner 顺序启动下一项。取消或运行失败立即停止后续项，未启动项保留 `not_started`。超速记为考核 FAIL，仿真继续执行当前及后续 case。一次启动对应一次实验，R 不重跑；完成、取消或失败后保留可用场景，关闭窗口后收尾。关闭已结束的窗口不会改变已确定的执行状态。
 
 Headless 按计算速度执行，结束后直接收尾退出。退出码见 [工具说明](../tools/README.md#benchmark)。
 
@@ -68,14 +68,18 @@ CSV 在 case 完成、取消或失败时尝试刷新。GUI 保留终态画面期
 | `phases` | 阶段的 id、start_s、end_s、kind 和 active_joints；主动关节编号为 1–6 |
 | `evaluation` | 评价入口成功后写入的逐阶段、逐轴结果；普通录制不生成此字段 |
 | `torque_limits_nm` | 初始化时取得的六轴实际模型电机限幅，每项包含 limited、lower、upper；未取得或历史记录缺失时无可用限幅数据 |
+| `speed_limits_radps` | 从模型 `joint_speed_limits_radps` 取得的六轴关节速度上限，按 J1–J6 排列；未取得或模型未声明时为 null |
+| `final_velocity_sample` | 初始状态或最后成功步进后的速度样本，包含 double 时间 time_s 和六轴 float 速度 velocity_radps；未创建仿真时为 null |
 
 Case 状态使用 `not_started`、`running`、`completed`、`cancelled`、`failed`。正常收尾文件的整体状态为 `completed`、`cancelled` 或 `failed`。在两项之间取消时，前一项仍为 completed，后一项仍为 not_started，整体为 cancelled。
 
 ### 离线评价
 
-评价只读取最终结果中的阶段描述和 CSV，校验 trace v1 的完整列序、有限数值、复位段、步号、仿真时间、步长与成功周期数。正常 benchmark 每项只有复位段 0。只有加载前失败或未启动且零样本的项可以没有 CSV。
+评价读取最终结果中的阶段描述、速度上限、最终速度样本和 CSV，校验 trace v1 的完整列序、有限数值、复位段、步号、仿真时间、步长与成功周期数。最终速度样本的时间必须对应最后一行 CSV 加一个模型步长；零成功周期时为时间 0。正常 benchmark 每项只有复位段 0。只有加载前失败或未启动且零样本的项可以没有 CSV。
 
-根 evaluation 保存独立的 format_version、评价状态和统计口径；每个 case 的 evaluation 保存阶段数组，按阶段 ID 对应原始 phases。阶段状态为 completed、partial 或 not_started；初始化阶段标记 excluded，不输出关节指标。无阶段工况标为 not_applicable。
+根 evaluation 保存独立的 format_version、评价状态和统计口径；每个 case 的 evaluation 保存阶段数组和全程 speed 结果，阶段按 ID 对应原始 phases。阶段状态为 completed、partial 或 not_started；初始化阶段的局部性能评价标记 excluded，不输出局部关节指标，但仍纳入全程速度统计。无阶段工况的局部评价标为 not_applicable。
+
+`evaluation.speed` 保存全程速度结果，每轴包含 speed_peak_abs_radps、speed_peak_abs_time_s、first_overspeed_time_s、overspeed_samples 和 overspeed_duration_s。N 行 CSV 加上最终端点，共 N+1 个速度样本。超速时长按 CSV 超速样本对应的物理周期累计。
 
 关节结果包含 joint、active/held 角色以及带单位后缀的指标字段，例如 position_error_rms_rad、velocity_peak_abs_radps、request_torque_peak_abs_nm。response 和 recovery 包含 arrival_time_s、settling_time_s、tail_position_error_mean_rad、tail_position_error_rms_rad 和相应原因，仅 response 包含方向性 overshoot_rad。极值及响应指标还保存定位时间和响应方向。指标定义与解释集中在 [教学任务说明](teaching.md#指标与解释)。
 
@@ -83,9 +87,9 @@ initial_position_error_rad 和 initial_velocity_radps 保存本阶段首样本�
 
 评价状态描述数据处理进度：完整处理为 completed，取消或失败后处理为 partial，原执行状态保持不变。完整阶段照常处理，部分阶段的完整响应指标留空，无样本阶段的关节数组为空。时间区间按记录时间划分，误差带持续时间按物理周期计算；时间覆盖检查容许 double 累加舍入误差，缺失周期视为记录错误。
 
-evaluation.assessment 保存独立版本、状态、本次选择和使用的限制值；case、阶段和关节同样保存 assessment。关节的 checks 包含 metric、value、limit、unit、status、reason、window_s 和可选的 time_s，用于解释结论和定位曲线。单位保持 rad、rad/s、s；界面及摘要转换为 deg、deg/s、s。
+evaluation.assessment 保存独立版本、状态、本次选择和使用的限制值；当前规则版本为 2，结果及 trace 格式版本仍为 1。case、阶段和关节同样保存 assessment，全程速度检查保存在 `evaluation.speed.assessment.checks`。checks 包含 metric、value、limit、unit、status、reason、window_s 和可选的 time_s，用于解释结论和定位曲线。速度检查的 metric 为 speed_peak_abs_radps，window_s 覆盖完整记录，phase_id 指向峰值所在阶段以便定位。单位保持 rad、rad/s、s；界面及摘要转换为 deg、deg/s、s。
 
-判定为 PASS、FAIL、INCOMPLETE 或 OBSERVE。聚合时 INCOMPLETE 优先于 FAIL，已观察到的失败检查仍保留；没有教学检查时为 OBSERVE。规则按教学 case 和阶段接口关联，与旧阶段结构不匹配时为 INCOMPLETE。通过线及短段例外只在 [教学任务说明](teaching.md#教学通过线) 解释。
+判定为 PASS、FAIL、INCOMPLETE 或 OBSERVE。正式工况超速时，工况及整体均为 FAIL，优先于 INCOMPLETE；其余检查按 INCOMPLETE、FAIL、PASS 的优先级聚合，无教学检查时为 OBSERVE。通过线及短段规则见 [教学任务说明](teaching.md#教学通过线)。
 
 评价成功后原子替换 result.json 中的评价字段，支持重复评价。CSV 损坏或数值评价失败时保留原始执行结果并报告错误。HTML 独立原子替换；报告生成失败时保留已写出的数值结果及 CSV。自动验收读取 evaluation.assessment.status，退出码见 [工具说明](../tools/README.md#benchmark)。
 
@@ -93,7 +97,7 @@ evaluation.assessment 保存独立版本、状态、本次选择和使用的限�
 
 打开 report.html 可查看整体判定、各工况结论和逐项检查。点击失败项可选择对应工况、阶段和关节，定位评价区间或极值；图表支持悬停读数、框选缩放、同步时间范围和重置。
 
-四组曲线为原始目标与实际位置、位置误差、实际速度、请求与实际力矩。图中标示到达统计误差带、适用的逐点通过限制、末段 RMS 评价区间及调节时刻。原始指标、图表说明和运行信息可展开查看。
+四组曲线为原始目标与实际位置、位置误差、实际速度、请求与实际力矩。图中标示到达统计误差带、适用的逐点通过限制、末段 RMS 评价区间及调节时刻。速度图显示双向限速线和最终速度端点；报告提供全程峰值、首次超速时间及累计时长。原始指标、图表说明和运行信息可展开查看。
 
 图表按阶段使用时间桶压缩，保留各通道极值、首尾及判定定位样本；评价使用完整 CSV。未启动和零样本阶段显示记录状态。
 

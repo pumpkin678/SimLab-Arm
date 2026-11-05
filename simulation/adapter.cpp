@@ -15,6 +15,20 @@ ArmAdapter::ArmAdapter(const mjModel &model)
     if (model.nq != 6 || model.nv != 6 || model.nu != 6) {
         throw std::runtime_error("The arm model requires six joint positions, velocities and actuators.");
     }
+    const int speed_limits = mj_name2id(&model, mjOBJ_NUMERIC, "joint_speed_limits_radps");
+    if (speed_limits >= 0) {
+        if (model.numeric_size[speed_limits] != 6) {
+            throw std::runtime_error("joint_speed_limits_radps requires six values in J1-J6 order.");
+        }
+        speed_limits_.emplace();
+        for (std::size_t index = 0; index < speed_limits_->size(); ++index) {
+            const double limit = model.numeric_data[model.numeric_adr[speed_limits] + index];
+            if (!std::isfinite(limit) || limit <= 0) {
+                throw std::runtime_error("joint_speed_limits_radps requires positive finite values.");
+            }
+            (*speed_limits_)[index] = limit;
+        }
+    }
     for (std::size_t index = 0; index < actuator_ids_.size(); ++index) {
         const auto number = std::to_string(index + 1);
         const int joint = mj_name2id(&model, mjOBJ_JOINT, ("joint" + number).c_str());

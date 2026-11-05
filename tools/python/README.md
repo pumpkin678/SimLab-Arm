@@ -26,7 +26,7 @@
 
 `check` 默认输出 `temp/model-check/checks.json`；`render` 默认输出 `assets/images/zero_pose.png`。两者均支持 `--output` 指定输出文件。
 
-`evaluate --run-directory` 指定含 `result.json` 和 case CSV 的录制目录。成功后更新评价字段、生成 `report.html` 并追加日志，保留执行状态与原始 CSV。评价契约见 [Benchmark 与采集](../../docs/benchmark.md#离线评价)，退出码见 [工具说明](../README.md#benchmark)。
+`evaluate --run-directory` 指定含 `result.json` 和 case CSV 的录制目录，按当前规则重新计算。成功后更新评价字段、生成 `report.html` 并追加日志，保留执行状态与原始 CSV。评价契约见 [Benchmark 与采集](../../docs/benchmark.md#离线评价)，退出码见 [工具说明](../README.md#benchmark)。
 
 `import --output` 指定一个新的候选目录；目录中已有 `description/arm.xml` 时拒绝覆盖。示例：
 

@@ -61,6 +61,8 @@ void reset();
 
 [ArmAdapter](../simulation/adapter.hpp) 按 `joint1`–`joint6`、`motor1`–`motor6` 绑定反馈地址和执行器，要求六个转动关节与六个对应电机。`Simulation::step()` 检查步前状态，读取反馈和上下文，调用 Arm，写入全部六路请求力矩，执行一次 `mj_step`，再用 `mj_forward` 更新当前姿态和输出。
 
+ArmAdapter 从模型 `joint_speed_limits_radps` 读取六个正有限的速度上限，单位为 rad/s，按 J1–J6 排列；Simulation 通过 `speedLimits()` 提供只读访问。Runner 在创建仿真及每次成功步进后保存最新速度端点，随各工况结果输出。离线评价结合 trace 的步前反馈与最终端点计算全程速度指标。
+
 `CycleResult::torques` 是 Arm 交给引擎的请求力矩，可能已经经过业务限幅。MJCF 电机配置仍可进一步限制输出；`lastTorques()` 返回引擎实际电机输出。关节限位、重力和接触同样由 MuJoCo 根据模型计算，参数见 [资产说明](../assets/README.md)。
 
 Arm 在 `torque_saturated` 中报告业务侧饱和。Simulation 根据请求力矩与引擎实际输出的差异合并模型限幅状态，随成功周期结果一起发布，供共用 UI 读取。标记不影响控制计算，失败周期不发布新标记，Reset 清零。

@@ -6,6 +6,7 @@
 #include <mujoco/mujoco.h>
 
 #include <array>
+#include <optional>
 
 namespace simlab {
 
@@ -24,6 +25,7 @@ struct JointTorqueLimit {
 };
 
 using JointTorqueLimits = std::array<JointTorqueLimit, 6>;
+using JointSpeedLimits = std::array<double, 6>; // Absolute joint-output speeds, rad/s.
 
 class ArmAdapter {
 public:
@@ -35,6 +37,7 @@ public:
     JointTorques readTorques(const mjData &data) const;
     const JointPositionLimits &positionLimits() const noexcept { return position_limits_; }
     const JointTorqueLimits &torqueLimits() const noexcept { return torque_limits_; }
+    const std::optional<JointSpeedLimits> &speedLimits() const noexcept { return speed_limits_; }
 
 private:
     std::array<int, 6> position_addresses_{};
@@ -42,6 +45,7 @@ private:
     std::array<int, 6> actuator_ids_{};
     JointPositionLimits position_limits_{};
     JointTorqueLimits torque_limits_{};
+    std::optional<JointSpeedLimits> speed_limits_;
     float timestep_{};
 };
 

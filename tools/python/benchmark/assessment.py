@@ -3,7 +3,8 @@
 import math
 
 
-VERSION = 1
+VERSION = 2
+SPEED_TOLERANCE = 0.0001  # rad/s; comparison tolerance, not an overspeed allowance.
 LIMITS = {
     "hold_position_peak_rad": math.radians(0.5),
     "hold_velocity_rms_radps": math.radians(1),
@@ -117,6 +118,34 @@ def make_check(case_id, phase, measured, joint, metric, limit_key):
             "status": status, "reason": reason, "window_s": window, "time_s": time}
 
 
+def assess_speed(case):
+    speed = case["evaluation"].get("speed", {})
+    checks = []
+    if case["id"] in TEACHING_CASES:
+        limits = case.get("speed_limits_radps")
+        for index in range(6):
+            joint = speed.get("joints", [{}] * 6)[index]
+            value = joint.get("speed_peak_abs_radps")
+            limit = limits[index] if limits is not None else None
+            if value is not None and limit is not None and value > limit + SPEED_TOLERANCE:
+                status, reason = "FAIL", "speed_limit_exceeded"
+            elif speed.get("status") != "completed" or value is None or limit is None:
+                status, reason = "INCOMPLETE", speed.get("reason", "speed_data_missing")
+            else:
+                status, reason = "PASS", "within_limit"
+            time = joint.get("speed_peak_abs_time_s")
+            phase = next((p for p in case["phases"] if time is not None and p["start_s"] <= time < p["end_s"]),
+                         case["phases"][-1] if case["phases"] else {"id": "whole_case"})
+            checks.append({"case_id": case["id"], "phase_id": phase["id"], "joint": index + 1,
+                "metric": "speed_peak_abs_radps", "limit_key": "joint_speed_limit_radps",
+                "value": value, "limit": limit, "unit": "rad/s", "status": status, "reason": reason,
+                "window_s": speed.get("window_s", [0, 0]), "time_s": time})
+    status = "FAIL" if any(c["status"] == "FAIL" for c in checks) else aggregate(c["status"] for c in checks)
+    speed["assessment"] = {"status": status, "checks": checks}
+    case["evaluation"]["speed"] = speed
+    return status
+
+
 def assess(result):
     for case in result["cases"]:
         expected = expected_phases(case["id"])
@@ -147,18 +176,22 @@ def assess(result):
         missing = sorted(set(expected) - set(measured_phases))
         case_status = aggregate((phase["assessment"]["status"] for phase in measured_phases.values()),
                                 incomplete=bool(expected) and (bool(missing) or case["status"] != "completed"))
+        speed_status = assess_speed(case)
+        case_status = "FAIL" if speed_status == "FAIL" else aggregate([case_status, speed_status])
         case["evaluation"]["assessment"] = {"status": case_status, "missing_phases": missing, "reasons": reasons}
+    speed_failed = any(case["evaluation"]["speed"]["assessment"]["status"] == "FAIL" for case in result["cases"])
     result["evaluation"]["assessment"] = {
-        "version": VERSION, "status": aggregate(
+        "version": VERSION, "status": "FAIL" if speed_failed else aggregate(
             (case["evaluation"]["assessment"]["status"] for case in result["cases"]),
             incomplete=result["status"] != "completed"),
         "selected_cases": [case["id"] for case in result["cases"]],
         "teaching_cases": [case["id"] for case in result["cases"] if case["id"] in TEACHING_CASES],
-        "limits": dict(LIMITS)}
+        "limits": dict(LIMITS), "speed_tolerance_radps": SPEED_TOLERANCE}
 
 
 def checks(result):
     for case in result["cases"]:
+        yield from case["evaluation"].get("speed", {}).get("assessment", {}).get("checks", [])
         for phase in case["evaluation"]["phases"]:
             for joint in phase["joints"]:
                 yield from joint["assessment"]["checks"]

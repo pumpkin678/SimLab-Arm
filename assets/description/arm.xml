@@ -3,6 +3,10 @@
   <!-- Maintained native MJCF. CAD import is explicit, not a build dependency. -->
   <compiler angle="radian" meshdir="../meshes/mjcf" inertiafromgeom="false" fusestatic="false" autolimits="false" />
   <option timestep="0.001" integrator="implicitfast" gravity="0 0 -9.81" />
+  <custom>
+    <!-- Joint-output teaching speed limits in rad/s, J1-J6. Metadata only. -->
+    <numeric name="joint_speed_limits_radps" data="3.7699111843077517 4.1887902047863905 3.7699111843077517 12.566370614359172 12.566370614359172 15.707963267948966" />
+  </custom>
   <default>
     <joint type="hinge" limited="true" actuatorfrclimited="false" damping="0" frictionloss="0" armature="0" />
     <geom density="0" contype="0" conaffinity="0" />

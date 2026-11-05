@@ -15,7 +15,7 @@ from unittest.mock import patch
 
 from tools.python.benchmark.evaluate import HEADER, evaluate_run, summary
 from tools.python.benchmark import evaluate as evaluator
-from tools.python.benchmark.assessment import LIMITS, aggregate, assess, checks, expected_phases, make_check
+from tools.python.benchmark.assessment import LIMITS, SPEED_TOLERANCE, aggregate, assess, checks, expected_phases, make_check
 from tools.python.benchmark.report import reduce_curve, write_report
 
 
@@ -34,6 +34,8 @@ class EvaluationTest(unittest.TestCase):
         case = {"id": "controlled", "duration_s": 1, "trace": "controlled.csv", "status": status,
                 "reason": "fixture", "samples": count, "last_step": count - 1 if count else None,
                 "timestep_s": 0.05, "expected_steps": 20, "parameters": {}, "phases": phases}
+        case["speed_limits_radps"] = [1.0] * 6
+        case["final_velocity_sample"] = {"time_s": count * 0.05, "velocity_radps": [0.0] * 6}
         result = {"format_version": 1, "trace_version": 1, "status": status, "cases": [case],
                   "preserved": {"model": "fixture", "configuration": "Release"}}
         self.save_result(directory, result)
@@ -254,8 +256,88 @@ class EvaluationTest(unittest.TestCase):
                        "settling_time_s": 0.25, "tail_position_error_rms_rad": math.radians(0.1),
                        "held_start_in_band": True} for j in range(1, 7)]
             measurements.append({"id": name, "status": "completed", "samples": 2000, "joints": joints})
+        speed = {"status": "completed", "reason": "complete", "window_s": [0, len(contracts) * 2],
+                 "joints": [{"joint": joint, "speed_peak_abs_radps": 0.0, "speed_peak_abs_time_s": 0.0,
+                             "first_overspeed_time_s": None, "overspeed_samples": 0,
+                             "overspeed_duration_s": 0.0} for joint in range(1, 7)]}
         return {"status": "completed", "cases": [{"id": case_id, "status": "completed", "samples": len(contracts)*2000,
-                "phases": definitions, "evaluation": {"phases": measurements}}], "evaluation": {}}
+                "speed_limits_radps": [1.0] * 6, "phases": definitions,
+                "evaluation": {"phases": measurements, "speed": speed}}], "evaluation": {}}
+
+    def speed_fixture(self, **kwargs):
+        directory = self.fixture(**kwargs)
+        result = json.loads((directory / "result.json").read_text())
+        result["cases"][0].update(id="joint_step", trace="joint_step.csv")
+        (directory / "controlled.csv").rename(directory / "joint_step.csv")
+        self.save_result(directory, result)
+        return directory
+
+    def test_speed_checks_initialization_held_axes_and_single_sample(self):
+        phases = [{"id": "initialize", "start_s": 0, "end_s": 0.2, "kind": "initialization", "active_joints": []},
+                  {"id": "response", "start_s": 0.2, "end_s": 1, "kind": "response", "active_joints": [1]}]
+        for index in (0, 3, 4, 19):
+            def update(i, row):
+                if i == index:
+                    row["velocity"][2] = -1.1
+            result = evaluate_run(self.speed_fixture(phases=phases, update=update))
+            speed = result["cases"][0]["evaluation"]["speed"]
+            self.assertEqual(speed["samples"], 21)
+            joint = speed["joints"][2]
+            self.assertAlmostEqual(joint["first_overspeed_time_s"], index * 0.05)
+            self.assertAlmostEqual(joint["overspeed_duration_s"], 0.05)
+            self.assertEqual(joint["overspeed_samples"], 1)
+            self.assertEqual(result["evaluation"]["assessment"]["status"], "FAIL")
+
+    def test_final_endpoint_speed_and_inclusive_tolerance(self):
+        threshold = 1.0 + SPEED_TOLERANCE
+        for value, expected in ((1.0, "PASS"), (-1.0, "PASS"),
+                                (threshold, "PASS"), (-threshold, "PASS"),
+                                (math.nextafter(threshold, math.inf), "FAIL"),
+                                (-math.nextafter(threshold, math.inf), "FAIL")):
+            directory = self.speed_fixture()
+            raw = json.loads((directory / "result.json").read_text())
+            raw["cases"][0]["final_velocity_sample"]["velocity_radps"][5] = value
+            self.save_result(directory, raw)
+            result = evaluate_run(directory)
+            speed = result["cases"][0]["evaluation"]["speed"]
+            self.assertEqual(speed["assessment"]["checks"][5]["status"], expected)
+            self.assertEqual(speed["joints"][5]["speed_peak_abs_time_s"], 1.0)
+            self.assertEqual(speed["joints"][5]["overspeed_duration_s"], 0.0)
+            if expected == "FAIL":
+                self.assertEqual(speed["joints"][5]["first_overspeed_time_s"], 1.0)
+                self.assertEqual(result["evaluation"]["assessment"]["status"], "FAIL")
+
+    def test_overspeed_survives_partial_run_and_subsequent_missing_case(self):
+        def update(index, row):
+            row["velocity"][1] = 2 if index == 0 else 0
+        result = evaluate_run(self.speed_fixture(count=1, status="cancelled", update=update))
+        self.assertEqual(result["evaluation"]["assessment"]["status"], "FAIL")
+        later = self.passing_result("posture_hold")["cases"][0]
+        later["status"] = "not_started"
+        result["cases"].append(later)
+        assess(result)
+        self.assertEqual(result["evaluation"]["assessment"]["status"], "FAIL")
+        self.assertEqual(result["cases"][0]["evaluation"]["speed"]["assessment"]["status"], "FAIL")
+
+    def test_missing_speed_metadata_cannot_pass_and_invalid_metadata_is_rejected(self):
+        for key in ("speed_limits_radps", "final_velocity_sample"):
+            directory = self.speed_fixture()
+            raw = json.loads((directory / "result.json").read_text())
+            del raw["cases"][0][key]
+            self.save_result(directory, raw)
+            result = evaluate_run(directory)
+            self.assertEqual(result["cases"][0]["evaluation"]["speed"]["assessment"]["status"], "INCOMPLETE")
+        for key, value in (("speed_limits_radps", [0] * 6), ("speed_limits_radps", [1] * 5),
+                           ("final_velocity_sample", {"time_s": 0.9, "velocity_radps": [0] * 6}),
+                           ("final_velocity_sample", {"time_s": 1, "velocity_radps": [0] * 5})):
+            directory = self.speed_fixture()
+            raw = json.loads((directory / "result.json").read_text())
+            raw["cases"][0][key] = value
+            self.save_result(directory, raw)
+            before = (directory / "result.json").read_bytes()
+            with self.assertRaises(ValueError):
+                evaluate_run(directory)
+            self.assertEqual((directory / "result.json").read_bytes(), before)
 
     def measured(self, result, phase_id, joint=1):
         return next(p for p in result["cases"][0]["evaluation"]["phases"] if p["id"] == phase_id)["joints"][joint-1]
