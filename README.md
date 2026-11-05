@@ -57,7 +57,7 @@ Benchmark GUI 显示工况参数、执行进度和最近成功步进使用的参
 
 - [架构说明](docs/architecture.md)：模块职责、数据流和运行时序。
 - [Benchmark 与采集](docs/benchmark.md)：工况定义、执行行为和记录格式。
-- [教学任务说明](docs/teaching.md)：教学目标、成员职责和待确定的验收内容。
+- [教学任务说明](docs/teaching.md)：教学目标、成员职责和通过条件。
 - [资产说明](assets/README.md)：模型坐标、运动范围和力矩参数。
 - [编译与运行](tools/README.md)：环境要求和脚本参数。
 - [Python 工具](tools/python/README.md)：姿态查看、模型检查、导入和渲染。

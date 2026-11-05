@@ -52,12 +52,22 @@ $process = Invoke-BenchmarkProcess -FilePath "$PSHOME/powershell.exe" -WorkingDi
         '-Model', $Model, '-Headless', '-Test', '-Case', 'joint_sine', '-OutputDirectory', $recordedOutput)
 if ($process.ExitCode -ne 0) { throw "Recording failed: $($process.StandardError)" }
 $names = @(Get-ChildItem -LiteralPath $recordedOutput -Force | Sort-Object Name | ForEach-Object Name)
-if (($names -join ',') -ne 'joint_sine.csv,result.json,run.log') { throw 'Recording must produce only CSV, result and log.' }
+if (($names -join ',') -ne 'joint_sine.csv,report.html,result.json,run.log') { throw 'Test must produce CSV, report, result and log.' }
 $result = Get-Content -Raw -LiteralPath (Join-Path $recordedOutput 'result.json') | ConvertFrom-Json
 if ($result.evaluation.format_version -ne 1 -or $result.evaluation.status -ne 'completed' -or
     $result.cases[0].evaluation.phases[0].samples -ne 8000) { throw 'Missing automatic evaluation.' }
-if ((Get-Content -Raw -LiteralPath (Join-Path $recordedOutput 'run.log')) -notmatch 'measured values only') {
+if ($result.evaluation.assessment.status -ne 'OBSERVE') { throw 'The example must remain observation-only.' }
+if ((Get-Content -Raw -LiteralPath (Join-Path $recordedOutput 'run.log')) -notmatch '\[OBSERVE\]') {
     throw 'Missing evaluation summary in run.log.'
+}
+
+$rawOutput = Join-Path $directory 'recording without assessment'
+$process = Invoke-BenchmarkProcess -FilePath "$PSHOME/powershell.exe" -WorkingDirectory $RepositoryRoot `
+    -Arguments @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $script, '-Configuration', $configuration,
+        '-Model', $Model, '-Headless', '-Case', 'joint_sine', '-OutputDirectory', $rawOutput)
+$names = @(Get-ChildItem -LiteralPath $rawOutput -Name | Sort-Object)
+if ($process.ExitCode -ne 0 -or ($names -join ',') -ne 'joint_sine.csv,result.json,run.log') {
+    throw 'Ordinary recording must retain its three artifact types.'
 }
 
 $failedOutput = Join-Path $directory 'model load failure'
@@ -92,4 +102,4 @@ try {
 
 $process = Invoke-BenchmarkProcess -FilePath $NormalApp -Arguments @('--case', 'joint_sine') -WorkingDirectory $RepositoryRoot
 if ($process.ExitCode -eq 0 -or $process.StandardError -notmatch 'tools/benchmark.ps1') { throw 'Missing old-entry migration error.' }
-Write-Host 'PASS script contract: parameters, output protection, three artifacts, automatic evaluation, Python preflight and failure preservation.'
+Write-Host 'PASS script contract: parameters, output protection, recording/report artifacts, assessment, Python preflight and failure preservation.'

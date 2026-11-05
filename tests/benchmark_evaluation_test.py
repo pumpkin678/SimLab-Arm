@@ -5,12 +5,18 @@ import csv
 import json
 import math
 import os
+import io
+from contextlib import redirect_stdout, redirect_stderr
+from html.parser import HTMLParser
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
 
 from tools.python.benchmark.evaluate import HEADER, evaluate_run, summary
+from tools.python.benchmark import evaluate as evaluator
+from tools.python.benchmark.assessment import LIMITS, aggregate, assess, checks, expected_phases, make_check
+from tools.python.benchmark.report import reduce_curve, write_report
 
 
 class EvaluationTest(unittest.TestCase):
@@ -234,6 +240,189 @@ class EvaluationTest(unittest.TestCase):
                 evaluate_run(directory)
         self.assertEqual((directory / "result.json").read_bytes(), before)
         self.assertFalse(list(directory.glob("*.tmp")))
+
+    def passing_result(self, case_id):
+        contracts = expected_phases(case_id) or {"observed": ("tracking", [1])}
+        definitions, measurements = [], []
+        for index, (name, (kind, active)) in enumerate(contracts.items()):
+            active = active if active is not None else list(range(1, 7))
+            definitions.append({"id": name, "start_s": index * 2, "end_s": index * 2 + 2,
+                                "kind": kind, "active_joints": active})
+            joints = [{"joint": j, "role": "active" if j in active else "held",
+                       "position_error_max_abs_rad": math.radians(0.1), "position_error_rms_rad": math.radians(0.1),
+                       "velocity_rms_radps": math.radians(0.1), "overshoot_rad": math.radians(0.2),
+                       "settling_time_s": 0.25, "tail_position_error_rms_rad": math.radians(0.1),
+                       "held_start_in_band": True} for j in range(1, 7)]
+            measurements.append({"id": name, "status": "completed", "samples": 2000, "joints": joints})
+        return {"status": "completed", "cases": [{"id": case_id, "status": "completed", "samples": len(contracts)*2000,
+                "phases": definitions, "evaluation": {"phases": measurements}}], "evaluation": {}}
+
+    def measured(self, result, phase_id, joint=1):
+        return next(p for p in result["cases"][0]["evaluation"]["phases"] if p["id"] == phase_id)["joints"][joint-1]
+
+    def test_all_rule_boundaries_are_inclusive(self):
+        phase = {"id": "test", "start_s": 0, "end_s": 4}
+        metric_for = {"hold_velocity_rms_radps": "velocity_rms_radps", "step_settling_s": "settling_time_s",
+                      "recovery_settling_s": "settling_time_s", "switch_settling_s": "settling_time_s",
+                      "overshoot_rad": "overshoot_rad", "tracking_error_rms_rad": "position_error_rms_rad",
+                      "tail_error_rms_rad": "tail_position_error_rms_rad"}
+        for key, limit in LIMITS.items():
+            metric = metric_for.get(key, "position_error_max_abs_rad")
+            joint = {"joint": 1, metric: limit}
+            check = make_check("test", phase, {"status": "completed"}, joint, metric, key)
+            self.assertEqual(check["status"], "PASS", key)
+            joint[metric] = math.nextafter(limit, math.inf)
+            self.assertEqual(make_check("test", phase, {"status": "completed"}, joint, metric, key)["status"], "FAIL", key)
+
+    def test_real_teaching_profiles_and_selected_scope(self):
+        cases = []
+        for name in ("posture_hold", "joint_step", "joint_tracking", "target_switch"):
+            result = self.passing_result(name)
+            assess(result)
+            self.assertEqual(result["evaluation"]["assessment"]["status"], "PASS", name)
+            self.assertEqual(result["evaluation"]["assessment"]["selected_cases"], [name])
+            self.assertTrue(list(checks(result)))
+            cases += result["cases"]
+        combined = {"status": "completed", "cases": cases, "evaluation": {}}
+        assess(combined)
+        self.assertEqual(combined["evaluation"]["assessment"]["status"], "PASS")
+        for name in ("joint_sine", "joint_tracking_stress", "custom_case"):
+            result = self.passing_result(name)
+            self.measured(result, "observed")["position_error_max_abs_rad"] = 100
+            assess(result)
+            self.assertEqual(result["evaluation"]["assessment"]["status"], "OBSERVE")
+            self.assertFalse(list(checks(result)))
+
+    def test_tail_rms_does_not_hide_opposite_errors(self):
+        def update(index, row):
+            row["position"][0] = 1 + math.radians(1) * (-1 if index % 2 else 1)
+        joint = self.phase(evaluate_run(self.fixture(update=update)))["joints"][0]
+        self.assertAlmostEqual(joint["tail_position_error_mean_rad"], 0)
+        self.assertAlmostEqual(joint["tail_position_error_rms_rad"], math.radians(1))
+        phase = {"id": "test", "start_s": 0, "end_s": 1}
+        self.assertEqual(make_check("test", phase, {"status": "completed"}, joint,
+                                   "tail_position_error_rms_rad", "tail_error_rms_rad")["status"], "FAIL")
+
+    def test_missing_settling_partial_and_legacy_layout(self):
+        result = self.passing_result("joint_step")
+        joint = self.measured(result, "j1_step_1")
+        joint["settling_time_s"] = None
+        assess(result)
+        self.assertEqual(result["evaluation"]["assessment"]["status"], "FAIL")
+        result["cases"][0]["status"] = result["status"] = "cancelled"
+        measured = next(p for p in result["cases"][0]["evaluation"]["phases"] if p["id"] == "j1_step_1")
+        measured["status"] = "partial"
+        joint["overshoot_rad"] = math.radians(3)
+        assess(result)
+        self.assertEqual(result["evaluation"]["assessment"]["status"], "INCOMPLETE")
+        self.assertTrue(any(c["status"] == "FAIL" for c in checks(result)))
+        self.assertEqual(aggregate(["OBSERVE", "PASS", "FAIL", "INCOMPLETE"]), "INCOMPLETE")
+        legacy = self.passing_result("joint_tracking")
+        legacy["cases"][0]["phases"][1]["id"] = "j1_fast"
+        legacy["cases"][0]["evaluation"]["phases"][1]["id"] = "j1_fast"
+        assess(legacy)
+        self.assertEqual(legacy["evaluation"]["assessment"]["status"], "INCOMPLETE")
+        self.assertIn("j1_tracking", legacy["cases"][0]["evaluation"]["assessment"]["missing_phases"])
+
+    def test_terminal_summary_keeps_failure_output_bounded(self):
+        result = self.passing_result("joint_step")
+        for phase in result["cases"][0]["evaluation"]["phases"]:
+            for joint in phase["joints"]:
+                joint["position_error_max_abs_rad"] = joint["tail_position_error_rms_rad"] = 100
+                joint["settling_time_s"] = None
+        assess(result)
+        message = summary(result)
+        self.assertEqual(result["evaluation"]["assessment"]["status"], "FAIL")
+        self.assertLessEqual(sum(line.startswith("[FAIL] joint_step/") for line in message.splitlines()), 20)
+        self.assertIn("full details are in result.json and report.html", message)
+
+    def test_short_responses_do_not_require_arrival_or_steady_tail(self):
+        result = self.passing_result("target_switch")
+        for phase in ("brief_target", "resume_motion"):
+            for joint in (4, 6):
+                entry = self.measured(result, phase, joint)
+                entry["settling_time_s"] = None
+                entry["tail_position_error_rms_rad"] = 100
+        assess(result)
+        self.assertEqual(result["evaluation"]["assessment"]["status"], "PASS")
+        self.measured(result, "withdraw", 3)["position_error_max_abs_rad"] = math.radians(1.01)
+        self.measured(result, "withdraw", 3)["held_start_in_band"] = False
+        assess(result)
+        self.assertEqual(result["evaluation"]["assessment"]["status"], "FAIL")
+
+    def test_downsampling_preserves_channel_extrema_and_decision_locations(self):
+        rows = []
+        for index in range(3200):
+            values = [0.0] * 30
+            values[0] = math.sin(index * 0.02)
+            values[6] = math.cos(index * 0.03)
+            values[12] = 123.5 if index == 517 else 0
+            values[18] = -8.25 if index == 1003 else 0
+            values[24] = 9.75 if index == 2200 else 0
+            rows.append((index * 0.001, index, tuple(values)))
+        reduced = reduce_curve(rows, 0, 0, 3.2, [0.617])
+        self.assertTrue(reduced["downsampled"])
+        self.assertEqual(reduced["original_samples"], len(rows))
+        kept = reduced["rows"]
+        self.assertEqual([kept[0][7], kept[-1][7]], [0, 3199])
+        self.assertIn(617, [row[7] for row in kept])
+        self.assertEqual(max(row[4] for row in kept), math.degrees(123.5))
+        self.assertEqual(min(row[5] for row in kept), -8.25)
+        self.assertEqual(max(row[6] for row in kept), 9.75)
+        error = [(row[2][0] - row[2][6]) * 180 / math.pi for row in rows]
+        self.assertAlmostEqual(max(row[3] for row in kept), max(error), places=12)
+        self.assertAlmostEqual(min(row[3] for row in kept), min(error), places=12)
+        self.assertEqual([row[7] for row in kept], sorted(set(row[7] for row in kept)))
+
+    def test_self_contained_report_escaping_empty_and_repeat(self):
+        class Parser(HTMLParser):
+            def __init__(self): super().__init__(); self.tags = []
+            def handle_starttag(self, tag, attrs): self.tags.append((tag, dict(attrs)))
+        for count, status in ((20, "completed"), (0, "cancelled")):
+            directory = self.fixture(count=count, status=status)
+            result = evaluate_run(directory)
+            result["model"] = '</script><script>alert("injected")</script>& model $app'
+            original_csv = (directory / "controlled.csv").read_bytes()
+            original = copy.deepcopy(result)
+            path = write_report(directory, result)
+            document = path.read_text(encoding="utf-8")
+            self.assertNotIn(result["model"], document)
+            parser = Parser(); parser.feed(document)
+            self.assertEqual(len([tag for tag, attrs in parser.tags if tag == "script"]), 3)
+            self.assertFalse(any((tag == "script" and "src" in attrs) or (tag == "link" and "href" in attrs) for tag, attrs in parser.tags))
+            payload = document.split('<script id="report-data" type="application/json">', 1)[1].split('</script>', 1)[0]
+            embedded = json.loads(payload)
+            self.assertEqual(embedded["result"], result)
+            self.assertEqual(embedded["series"][0][0][0]["original_samples"], count)
+            self.assertEqual(bool(embedded["series"][0][0][0]["rows"]), bool(count))
+            self.assertIn("plotly_relayout", document)
+            self.assertIn("hovertemplate", document)
+            self.assertEqual(write_report(directory, result), path)
+            self.assertEqual(result, original)
+            self.assertEqual((directory / "controlled.csv").read_bytes(), original_csv)
+            self.assertFalse(list(directory.glob("*.tmp")))
+
+    def test_report_replace_failure_and_cli_exit_contract(self):
+        directory = self.fixture()
+        result = evaluate_run(directory)
+        path = directory / "report.html"; path.write_text("old report")
+        with patch("tools.python.benchmark.report.os.replace", side_effect=OSError("replacement denied")):
+            with self.assertRaises(OSError): write_report(directory, result)
+        self.assertEqual(path.read_text(), "old report")
+        self.assertFalse(list(directory.glob("*.tmp")))
+        for verdict, execution in (("PASS", "completed"), ("FAIL", "completed"), ("OBSERVE", "completed"), ("INCOMPLETE", "cancelled")):
+            result["status"] = execution
+            result["evaluation"]["assessment"]["status"] = verdict
+            with patch.object(evaluator, "evaluate_run", return_value=result), \
+                 patch("tools.python.benchmark.report.write_report", return_value=path), \
+                 patch("sys.argv", ["evaluate", "--run-directory", str(directory)]), redirect_stdout(io.StringIO()):
+                self.assertEqual(evaluator.main(), 0)
+        before = (directory / "controlled.csv").read_bytes()
+        with patch("tools.python.benchmark.report.write_report", side_effect=OSError("report failed")), \
+             patch("sys.argv", ["evaluate", "--run-directory", str(directory)]), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            self.assertEqual(evaluator.main(), 1)
+        self.assertEqual((directory / "controlled.csv").read_bytes(), before)
+        self.assertEqual(json.loads((directory / "result.json").read_text())["status"], "completed")
 
 
 if __name__ == "__main__":

@@ -17,6 +17,14 @@ struct JointPositionLimit {
 
 using JointPositionLimits = std::array<JointPositionLimit, 6>;
 
+struct JointTorqueLimit {
+    bool limited{};
+    float lower{}; // N m
+    float upper{}; // N m
+};
+
+using JointTorqueLimits = std::array<JointTorqueLimit, 6>;
+
 class ArmAdapter {
 public:
     explicit ArmAdapter(const mjModel &model);
@@ -26,12 +34,14 @@ public:
     void writeTorques(mjData &data, const JointTorques &torques) const;
     JointTorques readTorques(const mjData &data) const;
     const JointPositionLimits &positionLimits() const noexcept { return position_limits_; }
+    const JointTorqueLimits &torqueLimits() const noexcept { return torque_limits_; }
 
 private:
     std::array<int, 6> position_addresses_{};
     std::array<int, 6> velocity_addresses_{};
     std::array<int, 6> actuator_ids_{};
     JointPositionLimits position_limits_{};
+    JointTorqueLimits torque_limits_{};
     float timestep_{};
 };
 

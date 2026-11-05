@@ -17,6 +17,7 @@ struct CaseReport {
     std::uint64_t samples{};
     std::uint64_t expected_steps{};
     double timestep{};
+    std::optional<JointTorqueLimits> torque_limits;
     std::string reason;
 };
 

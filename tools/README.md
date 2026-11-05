@@ -86,12 +86,24 @@ git submodule update --init --recursive
 | `-Case <ID或all>` | 选择单个工况，默认 all 执行常规工况；joint_tracking_stress 需显式选择 |
 | `-Record` | GUI 模式下开启录制 |
 | `-Headless` | 不创建窗口，自动开启录制，执行结束后退出 |
-| `-Test` | 自动开启录制，进程结束后调用 Python 评价；是否显示窗口仍由 Headless 决定 |
+| `-Test` | 自动录制，进程结束后计算指标、教学判定及 report.html；是否显示窗口仍由 Headless 决定 |
 | `-OutputDirectory <路径>` | 指定新的录制目录，必须与 Record、Headless 或 Test 一起使用 |
 
 预览不保存文件。录制默认在 `temp/benchmark/` 下创建唯一目录，已有输出目录拒绝复用。
 
-录制保存每个 case 的 CSV、一份 `result.json` 和一份 `run.log`；GUI 录制在关闭窗口后完成结果收尾。Test 需要先准备 [Python 工具环境](python/README.md)，评价数值写回 result.json，摘要追加 run.log。不使用 Test 时无需 Python。执行与数据含义见 [Benchmark 与采集](../docs/benchmark.md)。
+录制保存每个 case 的 CSV、一份 `result.json` 和一份 `run.log`。GUI 录制在关闭窗口后完成结果收尾。
+
+Test 需要先准备 [Python 工具环境](python/README.md)。评价及判定写回 `result.json`，摘要追加 `run.log`，另生成 `report.html` 供手动打开。普通预览和录制无需 Python。执行与数据含义见 [Benchmark 与采集](../docs/benchmark.md)。
+
+退出码约定适用于 benchmark 及离线 evaluate：
+
+| 退出码 | 含义 |
+| --- | --- |
+| `0` | 正常完成或取消；启用评价时，判定可为 PASS、FAIL、INCOMPLETE 或 OBSERVE |
+| `1` | 执行、采集、结果收尾、评价或报告错误 |
+| `2` | 参数错误 |
+
+终端和报告显示教学判定，自动验收读取 `result.json` 的 `evaluation.assessment.status`。
 
 ## 自动测试
 

@@ -13,6 +13,8 @@ import sys
 import tempfile
 from typing import NamedTuple
 
+from .assessment import assess, checks
+
 
 HEADER = ["trace_version", "reset_index", "step_index", "simulation_time_s", "cycle_timestep_s"] + [
     f"{prefix}_j{joint}_{suffix}"
@@ -146,12 +148,16 @@ def evaluate_phase(phase, rows, first, last, timestep):
     for joint in range(6):
         errors = [row.target[joint] - row.position[joint] for row in samples]
         velocities = [row.velocity[joint] for row in samples]
+        error_peak = max(range(len(samples)), key=lambda index: abs(errors[index]))
+        velocity_peak = max(range(len(samples)), key=lambda index: abs(velocities[index]))
         metrics = {"joint": joint + 1, "role": "active" if joint + 1 in active else "held",
                    "initial_position_error_rad": errors[0], "initial_velocity_radps": velocities[0],
                    "position_error_mean_rad": math.fsum(errors) / len(errors),
                    "position_error_rms_rad": math.sqrt(math.fsum(e * e for e in errors) / len(errors)),
-                   "position_error_max_abs_rad": max(map(abs, errors)),
-                   "velocity_peak_abs_radps": max(map(abs, velocities)),
+                   "position_error_max_abs_rad": abs(errors[error_peak]),
+                   "position_error_max_abs_time_s": samples[error_peak].time,
+                   "velocity_peak_abs_radps": abs(velocities[velocity_peak]),
+                   "velocity_peak_abs_time_s": samples[velocity_peak].time,
                    "request_torque_peak_abs_nm": max(abs(row.request[joint]) for row in samples),
                    "applied_torque_peak_abs_nm": max(abs(row.applied[joint]) for row in samples)}
         if joint + 1 not in active:
@@ -162,6 +168,7 @@ def evaluate_phase(phase, rows, first, last, timestep):
             tail = [row.target[joint] - row.position[joint] for row in samples if row.time >= end - TAIL_DURATION]
             valid_tail = complete and end - start >= TAIL_DURATION and bool(tail)
             metrics["tail_position_error_mean_rad"] = math.fsum(tail) / len(tail) if valid_tail else None
+            metrics["tail_position_error_rms_rad"] = math.sqrt(math.fsum(e * e for e in tail) / len(tail)) if valid_tail else None
             metrics["tail_reason"] = "recorded" if valid_tail else ("incomplete_phase" if not complete else "phase_too_short")
             if joint + 1 in active:
                 metrics.update(response_times(samples, joint, phase, timestep, complete))
@@ -171,7 +178,11 @@ def evaluate_phase(phase, rows, first, last, timestep):
                 previous = rows[first - 1].target[joint] if first else samples[0].position[joint]
                 change = samples[0].target[joint] - previous
                 direction = 1 if change > 0 else -1 if change < 0 else 0
-                metrics["overshoot_rad"] = max(0.0, max(-direction * error for error in errors)) if direction else None
+                metrics["response_direction"] = direction
+                metrics["response_target_rad"] = samples[0].target[joint]
+                peak = max(range(len(samples)), key=lambda index: -direction * errors[index])
+                metrics["overshoot_rad"] = max(0.0, -direction * errors[peak]) if direction else None
+                metrics["overshoot_time_s"] = samples[peak].time if metrics["overshoot_rad"] else None
                 metrics["overshoot_reason"] = ("recorded" if complete else "partial_observation") if direction else "no_target_change"
         report["joints"].append(metrics)
     return report
@@ -194,6 +205,13 @@ def evaluate_run(directory):
         require(case["status"] in {"completed", "cancelled", "failed", "not_started"}, "Case has not finalized")
         require(finite(case["duration_s"]) and case["duration_s"] > 0, "Invalid case duration")
         validate_phases(case)
+        limits = case.get("torque_limits_nm")
+        if limits is not None:
+            require(isinstance(limits, list) and len(limits) == 6, "Invalid torque limit metadata")
+            for limit in limits:
+                require(type(limit["limited"]) is bool and (not limit["limited"] or
+                        (finite(limit["lower"]) and finite(limit["upper"]) and limit["lower"] <= limit["upper"])),
+                        "Invalid torque limit metadata")
         rows = read_trace(directory, case)
         times = [row.time for row in rows]
         phases = [evaluate_phase(phase, rows, bisect_left(times, phase["start_s"]),
@@ -206,6 +224,7 @@ def evaluate_run(directory):
         "format_version": 1, "status": "completed" if result["status"] == "completed" else "partial",
         "criteria": {"position_band_rad": POSITION_BAND, "velocity_band_radps": VELOCITY_BAND,
                      "minimum_hold_s": MINIMUM_HOLD, "tail_duration_s": TAIL_DURATION}}
+    assess(result)
     temporary = None
     try:
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", newline="\n", dir=directory,
@@ -223,36 +242,42 @@ def evaluate_run(directory):
 
 
 def summary(result):
-    lines = [f"Evaluation {result['evaluation']['status']}: measured values only; no performance pass/fail.",
-             "Response band: 1 deg, 5 deg/s, held for 0.2 s; tail window: 0.5 s."]
+    decision = result["evaluation"]["assessment"]
+    lines = [f"[{decision['status']}] Teaching assessment v{decision['version']} | execution: {result['status']}",
+             "Response band: 1 deg, 5 deg/s, held for 0.2 s; tail window: 0.5 s.",
+             "Selected cases: " + ", ".join(decision["selected_cases"]),
+             f"Teaching cases in this selection: {len(decision['teaching_cases'])}; this is not a claim about unselected cases."]
     for case in result["cases"]:
-        for phase in case["evaluation"]["phases"]:
-            label = f"{case['id']}/{phase['id']}: {phase['status']}"
-            if phase.get("excluded"):
-                lines.append(label + " (initialization excluded)")
-                continue
-            joints = phase["joints"]
-            if not joints:
-                lines.append(label + " (no samples)")
-                continue
-            peak_speed = max(j["velocity_peak_abs_radps"] for j in joints)
-            for role in ("active", "held"):
-                group = [joint for joint in joints if joint["role"] == role]
-                if group:
-                    worst = max(group, key=lambda joint: joint["position_error_max_abs_rad"])
-                    label += f"; {role} max error J{worst['joint']} {math.degrees(worst['position_error_max_abs_rad']):.3f} deg"
-            label += f"; peak speed {math.degrees(peak_speed):.3f} deg/s"
-            inherited = [str(joint["joint"]) for joint in joints if joint.get("held_start_in_band") is False]
-            if inherited:
-                label += "; held joints outside band at start: " + ",".join("J" + joint for joint in inherited)
-            for joint in joints:
-                if "arrival_time_s" not in joint:
-                    continue
-                arrival, settling = joint["arrival_time_s"], joint["settling_time_s"]
-                a = f"{arrival:.3f}s" if arrival is not None else "n/a"
-                s = f"{settling:.3f}s" if settling is not None else "n/a"
-                label += f"; J{joint['joint']} arrival/settling {a}/{s}"
-            lines.append(label)
+        case_decision = case["evaluation"]["assessment"]
+        lines.append(f"[{case_decision['status']}] {case['id']} ({case['samples']} cycles)")
+        if case_decision["missing_phases"]:
+            lines.append("  Missing phases: " + ", ".join(case_decision["missing_phases"]))
+        lines.extend("  " + reason for reason in case_decision["reasons"])
+        warnings = [(phase["id"], [f"J{joint['joint']}" for joint in phase["joints"] if joint.get("held_start_in_band") is False])
+                    for phase in case["evaluation"]["phases"]]
+        warnings = [(phase, joints) for phase, joints in warnings if joints]
+        if len(warnings) > 3:
+            lines.append(f"  Held joints outside band at start in {len(warnings)} phases; see report for initial states.")
+        else:
+            lines.extend(f"  {phase}: held joints outside band at start: " + ",".join(joints) for phase, joints in warnings)
+    failures = [check for check in checks(result) if check["status"] in {"FAIL", "INCOMPLETE"}]
+    groups = [[check for check in failures if check["case_id"] == case["id"]] for case in result["cases"]]
+    displayed = []
+    for index in range(max(map(len, groups), default=0)):
+        for group in groups:
+            if index < len(group) and len(displayed) < 20:
+                displayed.append(group[index])
+    for check in displayed:
+        factor = 180 / math.pi if check["unit"].startswith("rad") else 1
+        unit = {"rad": "deg", "rad/s": "deg/s"}.get(check["unit"], check["unit"])
+        actual = f"{check['value'] * factor:.6g}" if check["value"] is not None else "n/a"
+        limit = f"{check['limit'] * factor:.6g}"
+        if check["status"] == "FAIL" and check["value"] is not None and actual == limit:
+            actual, limit = f"{check['value'] * factor:.17g}", f"{check['limit'] * factor:.17g}"
+        lines.append(f"[{check['status']}] {check['case_id']}/{check['phase_id']}/J{check['joint']} "
+                     f"{check['metric']}: {actual} {unit}; limit <= {limit} {unit}; {check['reason']}")
+    if len(failures) > len(displayed):
+        lines.append(f"Showing {len(displayed)} of {len(failures)} failed/incomplete checks; full details are in result.json and report.html.")
     return "\n".join(lines)
 
 
@@ -261,11 +286,17 @@ def main():
     parser.add_argument("--run-directory", type=Path, required=True)
     args = parser.parse_args()
     try:
-        message = summary(evaluate_run(args.run_directory))
+        from .report import write_report
+        result = evaluate_run(args.run_directory)
+        path = write_report(args.run_directory, result)
+        message = summary(result) + f"\nReport: {path}"
         with (args.run_directory / "run.log").open("a", encoding="utf-8") as log:
             log.write(message + "\n")
-        print(message)
-        return 0
+        colors = {"PASS": "32", "FAIL": "31", "INCOMPLETE": "33", "OBSERVE": "90"}
+        for line in message.splitlines():
+            status = next((status for status in colors if line.startswith(f"[{status}]")), None)
+            print(f"\033[{colors[status]}m{line}\033[0m" if status and sys.stdout.isatty() and not os.getenv("NO_COLOR") else line)
+        return 1 if result["status"] == "failed" else 0
     except (OSError, ValueError, KeyError, TypeError, OverflowError, csv.Error) as error:
         message = f"Evaluation failed: {error}"
         try:

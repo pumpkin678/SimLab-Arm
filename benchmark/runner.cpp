@@ -80,6 +80,7 @@ void Runner::startNext() {
         if (options_.output) trace = TraceOptions{*options_.output / (spec().id + ".csv"), false};
         simulation_ = std::make_unique<Simulation>(options_.model, trace);
         report.timestep = simulation_->model().opt.timestep;
+        report.torque_limits = simulation_->torqueLimits();
         const double steps = std::ceil(spec().duration / report.timestep);
         if (!std::isfinite(steps) || steps >= static_cast<double>(std::numeric_limits<std::uint64_t>::max())) {
             throw std::runtime_error("Case requires too many physics steps.");
@@ -198,6 +199,13 @@ nlohmann::json Runner::result() const {
         entry["last_step"] = report.samples ? nlohmann::json(report.samples - 1) : nlohmann::json(nullptr);
         entry["expected_steps"] = report.expected_steps ? nlohmann::json(report.expected_steps) : nlohmann::json(nullptr);
         entry["timestep_s"] = report.timestep > 0 ? nlohmann::json(report.timestep) : nlohmann::json(nullptr);
+        entry["torque_limits_nm"] = nullptr;
+        if (report.torque_limits) {
+            entry["torque_limits_nm"] = nlohmann::json::array();
+            for (const auto &limit : *report.torque_limits) {
+                entry["torque_limits_nm"].push_back({{"limited", limit.limited}, {"lower", limit.lower}, {"upper", limit.upper}});
+            }
+        }
         reports.push_back(std::move(entry));
     }
     return {{"format_version", 1}, {"trace_version", 1}, {"selection", options_.selection},

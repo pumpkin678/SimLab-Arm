@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SimLab-Arm 教学评价</title>
+<style>
+:root{font-family:Segoe UI,Microsoft YaHei,sans-serif;color:#1e3047;background:#f1f5fa;font-size:14px}
+*{box-sizing:border-box}[hidden]{display:none!important}body{margin:0}header{background:#172a43;color:#fff;padding:28px max(24px,calc((100vw - 1280px)/2))}
+h1{margin:0 0 6px;font-size:25px;font-weight:600}h2{font-size:18px;margin:0 0 16px}p{line-height:1.6}
+main{max-width:1328px;margin:auto;padding:24px}.panel{background:white;border:1px solid #dce5ef;border-radius:10px;padding:20px;margin-bottom:18px}
+.summary{display:flex;gap:24px;align-items:center;flex-wrap:wrap}.verdict{font-size:32px;font-weight:750;padding:10px 24px;border-radius:8px}
+.PASS{color:#126139;background:#dff3e7}.FAIL{color:#a82228;background:#ffe5e6}.INCOMPLETE{color:#8a5b00;background:#fff0c7}.OBSERVE{color:#536277;background:#e9edf2}
+.badge{display:inline-block;font-size:12px;font-weight:700;padding:3px 8px;border-radius:4px;margin-right:7px}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.case-card{text-align:left;background:white;border:1px solid #d8e2ed;border-radius:8px;padding:16px;cursor:pointer;min-width:0}.case-card strong{display:block;margin-top:10px;overflow-wrap:anywhere}
+button,select{font:inherit}button{cursor:pointer}button:focus-visible,select:focus-visible{outline:3px solid #75a7ea}
+.muted{color:#64768e;font-size:12px}.controls{display:flex;gap:16px;align-items:end;flex-wrap:wrap}.controls label{display:grid;gap:6px}.controls select{min-width:150px;max-width:360px;padding:8px;border:1px solid #c3d1e0;border-radius:5px;background:white}
+.action{padding:9px 14px;border:1px solid #c3d1e0;background:#f6f9fd;border-radius:5px}.table-wrap{overflow:auto;max-height:410px}
+table{border-collapse:collapse;width:100%;font-size:13px}th,td{padding:10px 12px;text-align:left;border-bottom:1px solid #e4ebf3;vertical-align:top}
+th{position:sticky;top:0;background:#f5f8fc;z-index:1;white-space:nowrap}td{overflow-wrap:anywhere}tr.clickable{cursor:pointer}tr.clickable:hover{background:#f0f6ff}
+.plots{display:grid;grid-template-columns:1fr;gap:12px}.plot{height:310px;min-width:0}.empty{padding:32px;border:1px dashed #bdcbdc;background:#f8fafd;line-height:1.8}
+.error{white-space:pre-wrap;color:#a82228}#phase-note,#case-note{white-space:pre-wrap;overflow-wrap:anywhere}#metadata{overflow-wrap:anywhere}.help{margin:16px 0;color:#64768e;font-size:12px}.help summary{cursor:pointer}.notice{color:#8a5b00}
+@media(min-width:1100px){.plots{grid-template-columns:1fr 1fr}}@media(max-width:600px){main{padding:12px}.panel{padding:14px}.controls select{max-width:250px}.plot{height:290px}}
+</style>
+</head>
+<body>
+<header><h1>SimLab-Arm · 教学评价</h1></header>
+<main>
+<section class="panel summary"><div id="overall" class="verdict"></div><div><strong>评测结果</strong><p id="scope"></p></div></section>
+<section class="panel"><h2>工况</h2><div id="cards" class="cards"></div></section>
+<section id="failure-section" class="panel"><h2>未通过项 <span id="failure-count" class="muted"></span></h2><p id="issues"></p><div id="failure-table" class="table-wrap"><table><thead><tr><th>结果</th><th>位置</th><th>指标</th><th>实测值</th><th>上限</th><th>原因</th></tr></thead><tbody id="failures"></tbody></table></div></section>
+<section class="panel">
+<div class="controls"><label>工况<select id="case-select"></select></label><label>阶段<select id="phase-select"></select></label><label>关节<select id="joint-select"></select></label><button class="action" id="reset-view">重置视图</button></div>
+<p id="case-note" class="error" hidden></p><p id="phase-note" class="notice" hidden></p><div id="no-samples" class="empty" hidden>该阶段没有记录数据。</div>
+<div id="plots" class="plots"><div id="position" class="plot"></div><div id="error" class="plot"></div><div id="velocity" class="plot"></div><div id="torque" class="plot"></div></div>
+<details class="help"><summary>图表说明</summary><p>拖动缩放，双击重置；四图同步时间范围。灰色虚线表示到达判定范围，红色虚线表示适用的上限。阴影区用于末段 RMS 统计。</p></details>
+<div id="check-section"><h2>判定明细</h2><div class="table-wrap"><table><thead><tr><th>结果</th><th>指标</th><th>实测值</th><th>上限</th></tr></thead><tbody id="checks"></tbody></table></div></div>
+<details id="measurement-section" class="panel"><summary>实测指标</summary><table><thead><tr><th>指标</th><th>实测值</th><th>说明</th></tr></thead><tbody id="measurements"></tbody></table></details>
+<div id="page-error" class="error" role="alert"></div>
+</section>
+<details class="panel muted"><summary>运行信息</summary><p id="execution"></p><p id="metadata"></p></details>
+<details class="panel muted"><summary>开源许可</summary><pre>$license</pre></details>
+</main>
+<script id="report-data" type="application/json">$data</script>
+<script>$plotly</script>
+<script>$app</script>
+</body>
+</html>

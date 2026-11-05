@@ -90,6 +90,7 @@ void checkOptions() {
     Runner runner(Options{}, selectCases("all"));
     const auto metadata = runner.result()["cases"][0];
     require(metadata["parameters"]["period"]["value"] == 4.0, "Case metadata does not use actual parameters");
+    require(metadata["torque_limits_nm"].is_null(), "Unstarted case invented torque limits");
 }
 
 void checkTeachingCases(const std::string &model) {
@@ -195,6 +196,17 @@ std::vector<Call> runBatched(const std::string &model, const std::filesystem::pa
     require(result["status"] == "completed" && result["cases"][0]["expected_steps"] == 3 &&
         result["cases"][1]["last_step"] == 1 && result["cases"][0]["parameters"]["test_value"]["unit"] == "rad",
         "Result/parameters do not match actual execution");
+    require(result["cases"][0]["torque_limits_nm"].size() == 6, "Missing recorded model torque limits");
+    for (std::size_t joint = 0; joint < 6; ++joint) {
+        const auto &limit = runner.simulation()->torqueLimits()[joint];
+        const auto recorded = result["cases"][0]["torque_limits_nm"][joint];
+        const auto name = "motor" + std::to_string(joint + 1);
+        const auto &active_model = runner.simulation()->model();
+        const int motor = mj_name2id(&active_model, mjOBJ_ACTUATOR, name.c_str());
+        require(recorded["limited"] == limit.limited && recorded["lower"] == limit.lower &&
+            recorded["upper"] == limit.upper && limit.lower == static_cast<float>(active_model.actuator_forcerange[2 * motor]) &&
+            limit.upper == static_cast<float>(active_model.actuator_forcerange[2 * motor + 1]), "Model limits not in J1-J6 order");
+    }
     requireThrows([&] { runner.writeResult(); });
     requireThrows([&] { Runner duplicate(options(model, directory), {definition("first")}); });
     return calls;

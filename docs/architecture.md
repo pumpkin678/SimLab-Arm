@@ -57,7 +57,7 @@ void reset();
 
 `update()` 每个物理步调用一次。输入目标、反馈、时间、dt 和返回力矩均为 float；模型时间及程序参考函数的时间参数保留 double。默认 Arm 返回六路零力矩，内部规划与控制由成员实现。
 
-参考接入只传递目标位置，不补充目标速度或加速度，也不对程序参考裁剪或平滑。手动 UI 的位置范围来自模型；Simulation 入口统一拒绝非有限目标，有限的越界目标仍原样传入 Arm。
+参考接入传递原始目标位置，规划由 Arm 负责。手动 UI 的位置范围来自模型；Simulation 入口统一拒绝非有限目标，有限的越界目标原样传入 Arm。
 
 [ArmAdapter](../simulation/adapter.hpp) 按 `joint1`–`joint6`、`motor1`–`motor6` 绑定反馈地址和执行器，要求六个转动关节与六个对应电机。`Simulation::step()` 检查步前状态，读取反馈和上下文，调用 Arm，写入全部六路请求力矩，执行一次 `mj_step`，再用 `mj_forward` 更新当前姿态和输出。
 

@@ -1,6 +1,6 @@
 # Benchmark 与采集
 
-Benchmark 用代码生成六轴目标位置，通过普通 `Simulation::step(command)` 执行，并按需录制逐周期数据。Test 选项在录制结束后执行离线评价，输出实测指标；教学通过阈值尚未设置。启动命令和参数见 [工具说明](../tools/README.md)。
+Benchmark 用代码生成六轴目标位置，通过普通 `Simulation::step(command)` 执行，并按需录制逐周期数据。Test 选项在录制结束后计算指标、教学判定和离线交互报告。启动命令和参数见 [工具说明](../tools/README.md)。
 
 ## 工况定义与登记
 
@@ -14,7 +14,7 @@ Benchmark 用代码生成六轴目标位置，通过普通 `Simulation::step(com
 | `evaluate(double time)` | 以当前步前仿真时间求六轴 JointCommand，时间单位 s，目标单位 rad |
 | `phases` | 顺序覆盖工况的阶段描述；无阶段的内部契约测试工况不执行局部评价 |
 
-参考只有六轴位置，J1–J6 对应数组下标 0–5。接入层不生成速度、加速度或平滑轨迹；函数输出中的有限越界目标原样传给 Arm，非有限目标由 Simulation 拒绝。
+参考为六轴原始目标位置，J1–J6 对应数组下标 0–5。有限的越界目标原样传给 Arm，非有限目标由 Simulation 拒绝。
 
 每个工况放在 `benchmark/cases/<ID>/` 中。该目录的 `case.hpp` 声明定义入口，`case.cpp` 保存参数、参考函数和返回完整 CaseSpec 的 `definition()`。公共类型放在 `benchmark/cases/case.hpp`，登记与选择放在 [cases.cpp](../benchmark/cases/cases.cpp)。选择 `all` 时按登记顺序执行常规工况，单个 ID 只执行对应项；可选 joint_tracking_stress 必须显式选择。
 
@@ -36,15 +36,7 @@ GUI 自动开始，支持 Space 暂停／恢复、Backspace 取消，Esc 或关�
 
 一个 case 完成并刷新 CSV 后，Runner 顺序启动下一项。取消或失败立即停止后续项，未启动项保留 `not_started`。一次启动对应一次实验，R 不重跑；完成、取消或失败后保留可用场景，关闭窗口后收尾。关闭已结束的窗口不会改变已确定的执行状态。
 
-Headless 不创建窗口，按计算速度执行，结束后直接收尾退出。执行程序 `simlab_benchmark` 的退出码为：
-
-| 退出码 | 含义 |
-| --- | --- |
-| `0` | 正常完成或正常取消，包括零样本取消 |
-| `1` | 执行、采集或结果收尾失败 |
-| `2` | 参数错误 |
-
-`completed` 和退出码 0 只表示执行流程完成，不表示跟随性能达标。
+Headless 按计算速度执行，结束后直接收尾退出。退出码见 [工具说明](../tools/README.md#benchmark)。
 
 ## 录制产物与结果
 
@@ -55,10 +47,11 @@ Headless 不创建窗口，按计算速度执行，结束后直接收尾退出�
 | `<case_id>.csv` | 该 case 使用的 trace v1 数据，每项单独保存 |
 | `result.json` | 整体及各 case 的状态、参数、阶段和成功周期数；评价后增加指标 |
 | `run.log` | stdout、stderr、进程退出码、错误，以及评价摘要 |
+| `report.html` | 仅 Test 或 evaluate 生成；包含判定、检查表和离线交互曲线 |
 
 CSV 在 case 完成、取消或失败时尝试刷新。GUI 保留终态画面期间，已成功刷新的 CSV 可读取；最终 `result.json` 在关闭窗口后写入，脚本随后完成日志收集和结果检查。
 
-参数错误、加载失败或强制终止可能使产物不齐全，例如只有日志或没有最终结果。脚本将缺少最终结果、非零执行退出码、结果失败或收尾错误报告为错误，保留已有文件。未启动项没有 CSV；记录文件的写入或刷新失败时，已有文件可能不完整。
+执行或收尾出错时，脚本报告错误并保留已有文件。未启动项没有 CSV；加载、写入、刷新失败或强制终止可能留下不完整的产物。
 
 ### result.json
 
@@ -74,6 +67,7 @@ CSV 在 case 完成、取消或失败时尝试刷新。GUI 保留终态画面期
 | `last_step` | 最后一个成功步号；零样本为 null |
 | `phases` | 阶段的 id、start_s、end_s、kind 和 active_joints；主动关节编号为 1–6 |
 | `evaluation` | 评价入口成功后写入的逐阶段、逐轴结果；普通录制不生成此字段 |
+| `torque_limits_nm` | 初始化时取得的六轴实际模型电机限幅，每项包含 limited、lower、upper；未取得或历史记录缺失时无可用限幅数据 |
 
 Case 状态使用 `not_started`、`running`、`completed`、`cancelled`、`failed`。正常收尾文件的整体状态为 `completed`、`cancelled` 或 `failed`。在两项之间取消时，前一项仍为 completed，后一项仍为 not_started，整体为 cancelled。
 
@@ -83,13 +77,27 @@ Case 状态使用 `not_started`、`running`、`completed`、`cancelled`、`faile
 
 根 evaluation 保存独立的 format_version、评价状态和统计口径；每个 case 的 evaluation 保存阶段数组，按阶段 ID 对应原始 phases。阶段状态为 completed、partial 或 not_started；初始化阶段标记 excluded，不输出关节指标。无阶段工况标为 not_applicable。
 
-关节结果包含 joint、active/held 角色以及带单位后缀的指标字段，例如 position_error_rms_rad、velocity_peak_abs_radps、request_torque_peak_abs_nm。response 和 recovery 包含 arrival_time_s、settling_time_s、tail_position_error_mean_rad 和相应原因，仅 response 包含方向性 overshoot_rad。指标定义与解释集中在 [教学任务说明](teaching.md#指标与解释)。
+关节结果包含 joint、active/held 角色以及带单位后缀的指标字段，例如 position_error_rms_rad、velocity_peak_abs_radps、request_torque_peak_abs_nm。response 和 recovery 包含 arrival_time_s、settling_time_s、tail_position_error_mean_rad、tail_position_error_rms_rad 和相应原因，仅 response 包含方向性 overshoot_rad。极值及响应指标还保存定位时间和响应方向。指标定义与解释集中在 [教学任务说明](teaching.md#指标与解释)。
 
-initial_position_error_rad 和 initial_velocity_radps 保存本阶段首样本的状态；保持轴的 held_start_in_band 按现有位置、速度统计误差带标记首样本。false 时摘要提示该轴起始未进入误差带，原始误差指标仍完整保留。该标记只描述起始瞬时状态，不表示已经持续稳定或性能通过。
+initial_position_error_rad 和 initial_velocity_radps 保存本阶段首样本的状态；保持轴的 held_start_in_band 表示首样本是否位于位置、速度统计误差带内。false 时摘要提示该轴起始未进入误差带。
 
-评价 completed 仅表示数据处理完成。取消或失败时评价状态为 partial，原执行状态不变；完整阶段照常处理，部分阶段不输出完整响应结论。无样本阶段的关节数组为空。时间区间按记录时间划分，误差带持续时间按物理周期计算；时间覆盖检查容许 double 累加舍入误差，不容许缺失周期。
+评价状态描述数据处理进度：完整处理为 completed，取消或失败后处理为 partial，原执行状态保持不变。完整阶段照常处理，部分阶段的完整响应指标留空，无样本阶段的关节数组为空。时间区间按记录时间划分，误差带持续时间按物理周期计算；时间覆盖检查容许 double 累加舍入误差，缺失周期视为记录错误。
 
-评价成功后原子替换 result.json，仅增加或替换评价字段，允许重新评价。CSV 损坏或评价失败时保留原始执行结果并报告错误；终端和日志摘要使用 deg、deg/s、s、N·m。Test 的执行或评价错误返回 1，参数错误返回 2，正常取消与较差的性能指标不产生非零退出码。
+evaluation.assessment 保存独立版本、状态、本次选择和使用的限制值；case、阶段和关节同样保存 assessment。关节的 checks 包含 metric、value、limit、unit、status、reason、window_s 和可选的 time_s，用于解释结论和定位曲线。单位保持 rad、rad/s、s；界面及摘要转换为 deg、deg/s、s。
+
+判定为 PASS、FAIL、INCOMPLETE 或 OBSERVE。聚合时 INCOMPLETE 优先于 FAIL，已观察到的失败检查仍保留；没有教学检查时为 OBSERVE。规则按教学 case 和阶段接口关联，与旧阶段结构不匹配时为 INCOMPLETE。通过线及短段例外只在 [教学任务说明](teaching.md#教学通过线) 解释。
+
+评价成功后原子替换 result.json 中的评价字段，支持重复评价。CSV 损坏或数值评价失败时保留原始执行结果并报告错误。HTML 独立原子替换；报告生成失败时保留已写出的数值结果及 CSV。自动验收读取 evaluation.assessment.status，退出码见 [工具说明](../tools/README.md#benchmark)。
+
+### 交互报告
+
+打开 report.html 可查看整体判定、各工况结论和逐项检查。点击失败项可选择对应工况、阶段和关节，定位评价区间或极值；图表支持悬停读数、框选缩放、同步时间范围和重置。
+
+四组曲线为原始目标与实际位置、位置误差、实际速度、请求与实际力矩。图中标示到达统计误差带、适用的逐点通过限制、末段 RMS 评价区间及调节时刻。原始指标、图表说明和运行信息可展开查看。
+
+图表按阶段使用时间桶压缩，保留各通道极值、首尾及判定定位样本；评价使用完整 CSV。未启动和零样本阶段显示记录状态。
+
+电机限幅线使用录制时保存的模型限幅。ArmAdapter 通过既有执行器绑定读取限幅，由 Simulation 提供只读访问，Runner 写入结果；历史记录缺少该字段时省略限幅线。报告为单文件，内联 Plotly.js basic、MIT 许可证、样式和绘图数据。
 
 ## 统一 trace v1
 
@@ -97,7 +105,7 @@ initial_position_error_rad 和 initial_velocity_radps 保存本阶段首样本�
 
 输入、位置与速度反馈直接取本次 `Arm::update()` 使用的局部值，请求力矩取本次返回结果。行时间是步前 MuJoCo 时间；实际力矩取本步 `mj_step()` 和 `mj_forward()` 之后的引擎输出，与 `lastTorques()` 一致。分析同一行时，应把它理解为步前输入／反馈与本次输出的配对。
 
-`input` 保存外部原始目标，内部规划位置与速度不在 trace v1 中。它可用于评价从原始输入到实际运动的整体表现，但不能单独分离规划误差与控制器跟随误差。
+`input` 保存外部原始目标，用于评价规划与控制的整体表现。内部规划位置与速度不在 trace v1 中。
 
 CSV 固定为 35 列，以下序号从 1 开始，各组六轴字段均按 J1–J6 排列，N 表示 1–6：
 

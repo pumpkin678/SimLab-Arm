@@ -32,6 +32,14 @@ ArmAdapter::ArmAdapter(const mjModel &model)
             model.jnt_limited[joint] != 0,
             static_cast<float>(model.jnt_range[2 * joint]),
             static_cast<float>(model.jnt_range[2 * joint + 1])};
+        torque_limits_[index] = {
+            model.actuator_forcelimited[actuator] != 0,
+            static_cast<float>(model.actuator_forcerange[2 * actuator]),
+            static_cast<float>(model.actuator_forcerange[2 * actuator + 1])};
+        const auto &limit = torque_limits_[index];
+        if (limit.limited && (!std::isfinite(limit.lower) || !std::isfinite(limit.upper) || limit.lower > limit.upper)) {
+            throw std::runtime_error("Invalid model motor torque range for J" + number);
+        }
     }
 }
 

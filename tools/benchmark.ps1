@@ -35,8 +35,11 @@ function Invoke-BenchmarkRun {
     if ($Test) {
         $uv = Get-Command uv -CommandType Application -ErrorAction SilentlyContinue
         if (-not $uv) { throw 'Benchmark -Test requires uv and the Python tools environment. See tools/python/README.md.' }
-        & $uv.Source run --locked --project (Join-Path $repoRoot 'tools/python') python -B -c 'import csv, json, math'
-        if ($LASTEXITCODE -ne 0) { throw 'Benchmark Python environment check failed.' }
+        Push-Location -LiteralPath $repoRoot
+        try {
+            & $uv.Source run --locked --project (Join-Path $repoRoot 'tools/python') python -B -c 'from tools.python.benchmark.report import check_assets; check_assets()'
+            if ($LASTEXITCODE -ne 0) { throw 'Benchmark Python/report environment check failed.' }
+        } finally { Pop-Location }
     }
     $arguments = @($modelPath, '--case', $Case)
     if (-not $recording) {
@@ -78,7 +81,7 @@ function Invoke-BenchmarkRun {
             $evaluation = Invoke-BenchmarkProcess -FilePath (Get-Process -Id $PID).Path -WorkingDirectory $repoRoot `
                 -Arguments @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
                     (Join-Path $repoRoot 'tools/python/run.ps1'), 'evaluate', '--run-directory', $output)
-            if ($evaluation.StandardOutput) { Write-Host $evaluation.StandardOutput -NoNewline }
+            if ($evaluation.StandardOutput) { Write-BenchmarkOutput $evaluation.StandardOutput }
             if ($evaluation.StandardError) { Write-Host $evaluation.StandardError -NoNewline }
             if ($evaluation.ExitCode -ne 0) { throw "Benchmark evaluation failed (exit $($evaluation.ExitCode)); execution exit code: $($process.ExitCode)." }
         }

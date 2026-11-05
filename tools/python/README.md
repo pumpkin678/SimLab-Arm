@@ -11,7 +11,7 @@
 | `check` | 检查 CAD 迁移、惯量、运动学、力矩映射和接触策略 |
 | `render` | 生成零位与关节正方向示意图 |
 | `import` | 从 CAD 资产生成 MJCF 候选目录 |
-| `evaluate` | 根据 benchmark 的阶段信息和 CSV 计算离线指标，更新原结果并追加日志 |
+| `evaluate` | 根据阶段信息和 CSV 计算指标及教学判定，更新结果、日志和离线交互报告 |
 
 ```powershell
 ./tools/python/run.ps1 sync
@@ -26,7 +26,7 @@
 
 `check` 默认输出 `temp/model-check/checks.json`；`render` 默认输出 `assets/images/zero_pose.png`。两者均支持 `--output` 指定输出文件。
 
-`evaluate --run-directory` 指定含 result.json 和 case CSV 的录制目录。成功后替换评价字段，保留执行状态与原始记录，不额外生成报告。评价契约见 [Benchmark 与采集](../../docs/benchmark.md#离线评价)。
+`evaluate --run-directory` 指定含 `result.json` 和 case CSV 的录制目录。成功后更新评价字段、生成 `report.html` 并追加日志，保留执行状态与原始 CSV。评价契约见 [Benchmark 与采集](../../docs/benchmark.md#离线评价)，退出码见 [工具说明](../README.md#benchmark)。
 
 `import --output` 指定一个新的候选目录；目录中已有 `description/arm.xml` 时拒绝覆盖。示例：
 

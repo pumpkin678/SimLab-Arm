@@ -43,3 +43,18 @@ function Invoke-BenchmarkProcess {
     }
     return $result
 }
+
+function Write-BenchmarkOutput {
+    param([string]$Text)
+    if (-not $Text) { return }
+    if ([Console]::IsOutputRedirected -or $env:NO_COLOR) {
+        Write-Host $Text -NoNewline
+        return
+    }
+    $colors = @{ PASS = 'Green'; FAIL = 'Red'; INCOMPLETE = 'Yellow'; OBSERVE = 'Gray' }
+    foreach ($line in [regex]::Split($Text, '(?<=\n)')) {
+        if ($line -match '^\[(PASS|FAIL|INCOMPLETE|OBSERVE)\]') {
+            Write-Host $line -NoNewline -ForegroundColor $colors[$Matches[1]]
+        } else { Write-Host $line -NoNewline }
+    }
+}
