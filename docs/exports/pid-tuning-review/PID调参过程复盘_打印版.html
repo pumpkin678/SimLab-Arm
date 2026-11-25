@@ -1,0 +1,81 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>SimLab-Arm PID 调参过程复盘</title><style>
+@page{size:A4;margin:15mm 14mm}
+*{box-sizing:border-box}html,body{margin:0;padding:0;background:white;color:#1b2b3c;font-family:"Microsoft YaHei","Noto Sans SC",Arial,sans-serif;font-size:10.2pt;line-height:1.6;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.page{width:182mm;margin:0 auto;break-after:page;page-break-after:always}.page:last-child{break-after:auto;page-break-after:auto}.kicker{font:9pt/1.4 Arial,sans-serif;letter-spacing:1px;color:#587187;margin-bottom:9px}h1{font-size:23pt;line-height:1.35;margin:0 0 15px;color:#153a58;font-weight:700}h2{font-size:12pt;line-height:1.5;margin:19px 0 8px;color:#1a4967}p{margin:8px 0}.lead{font-size:14pt;line-height:1.65;margin:12px 0}.period{color:#587187;margin-bottom:18px}.small{font-size:8.6pt;color:#536576;line-height:1.55}.hero{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:18px 0}.hero>div{border-top:3px solid #21826a;background:#eef7f4;padding:14px}.hero span{display:block;font-size:9pt;color:#47695f}.hero strong{font:700 25pt/1.5 Arial,sans-serif;color:#126448}.callout{background:#eef4f9;border-left:3px solid #2e6d99;padding:10px 14px;margin-top:13px;break-inside:avoid}.callout p{margin:4px 0}.formula{background:#f4f7fa;border:1px solid #dce6ee;border-radius:5px;padding:10px 14px;margin:10px 0;font-size:10pt;line-height:1.75;break-inside:avoid}table{border-collapse:collapse;width:100%;font-size:9.1pt;line-height:1.5;margin:9px 0}th{background:#eaf1f6;color:#23435d;text-align:left;font-weight:600}th,td{padding:7px 8px;border-bottom:1px solid #dfe7ee;vertical-align:top}table.compact{font-size:8.5pt}table.compact th,table.compact td{padding:5px 6px}.timeline{font-size:8.6pt}.timeline th,.timeline td{padding:8px 6px}.nowrap{white-space:nowrap}.badge{display:inline-block;font:700 8.5pt/1.5 Arial,sans-serif;padding:2px 7px;border-radius:3px}.pass{background:#e1f2e9;color:#126448}.fail{background:#fce9e7;color:#a13f31}.observe{background:#edf0f4;color:#526274}figure{margin:11px 0 13px;break-inside:avoid}figure img{display:block;width:100%;height:auto}figcaption{font-size:8.5pt;line-height:1.5;color:#304e63;padding:3px 4px 0}.source{display:block;font:7.5pt/1.4 Arial,"Microsoft YaHei",sans-serif;color:#718294;overflow-wrap:anywhere;margin-top:2px}code{font-family:Consolas,"Microsoft YaHei",monospace;font-size:.9em;background:#f0f4f7;padding:1px 3px}pre{font:8.1pt/1.6 Consolas,"Microsoft YaHei",monospace;white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f5f8;border-left:3px solid #779cb6;padding:10px 12px;margin:8px 0}ul{margin:7px 0;padding-left:20px}.source-index{font-size:8.2pt;line-height:1.6}.source-index li{margin:2px 0}.source-index code{font-size:8.1pt;background:none}.compact-page{font-size:9.5pt}.compact-page figure img{max-height:57mm;object-fit:contain}.compact-page p{margin:6px 0}
+</style></head><body><section class="page" id="p1"><div class="kicker">01 / SIMLAB-ARM · 实验记录</div><h1>机械臂 PID 调参过程复盘</h1>
+<p class="lead">从“能够运动，但停不准、跟不上”，到同一套代码与参数完整通过四项正式 benchmark。</p>
+<p class="period">实验记录：2026 年 11 月 10 日—11 月 25 日</p>
+<div class="hero"><div><span>最终整体判定</span><strong>PASS</strong></div><div><span>正式工况通过</span><strong>4 / 4</strong></div><div><span>完整运行周期</span><strong>174,000</strong></div></div>
+<h2>最终结果</h2>
+<table><tr><th>工况</th><th>任务</th><th>最新复测</th></tr>
+<tr><td>posture_hold</td><td>姿态保持</td><td><span class="badge pass">PASS</span></td></tr>
+<tr><td>joint_step</td><td>单轴阶跃与保持轴抗扰</td><td><span class="badge pass">PASS</span></td></tr>
+<tr><td>joint_tracking</td><td>连续跟随及结束后恢复</td><td><span class="badge pass">PASS</span></td></tr>
+<tr><td>target_switch</td><td>多轴改目标、撤回与反向</td><td><span class="badge pass">PASS</span></td></tr></table>
+<p class="small">joint_sine 为 OBSERVE 示例，不属于必须判为 PASS 的四项正式工况。</p>
+<h2>三个关键改善</h2>
+<table><tr><th>指标</th><th>原条件积分 PID</th><th>最终版本</th><th>要求</th></tr>
+<tr><td>J1 跟踪误差 RMS</td><td>1.392°</td><td><b>0.334°</b></td><td>≤1°</td></tr>
+<tr><td>J6 大幅反向调节时间</td><td>5.455 s</td><td><b>1.153 s</b></td><td>≤2 s</td></tr>
+<tr><td>J2 大阶跃末段误差 RMS</td><td>1.930°</td><td><b>0.312°</b></td><td>≤0.5°</td></tr></table>
+<div class="callout"><b>本次工作的主线</b><p>先用积分解决静态负载偏差；再改进参考运动与速度反馈，解决动态滞后和到位过慢；最后针对剩余的阶跃失败调整刚度、阻尼和积分恢复能力。</p></div>
+<p class="small">本 PDF 依据已保存的 result.json、report.html、源码快照及参数记录整理，没有重新运行仿真。后文 10 张曲线图直接由原报告中的 Plotly 图表导出；为便于打印和对比，只调整显示尺寸、字体与坐标范围，曲线数据和判定不变。</p>
+</section><section class="page" id="p2"><div class="kicker">02 / 先看过程，再看曲线</div><h1>实验时序与验收口径</h1>
+<table class="timeline"><tr><th>轮次</th><th>结果时间</th><th>版本</th><th>本轮修改</th><th>判定</th></tr><tr><td>1</td><td class="nowrap">11-10 21:27</td><td>PD 初版</td><td>参考限速 + PD，仅运行姿态保持。</td><td><span class="badge fail">FAIL</span><br><span class="small">6 项失败检查</span></td></tr><tr><td>2</td><td class="nowrap">11-20 14:24</td><td>加入条件积分</td><td>J2/J3 增加积分、限幅和抗饱和。</td><td><span class="badge fail">FAIL</span><br><span class="small">26 项失败检查</span></td></tr><tr><td>3</td><td class="nowrap">11-20 14:32</td><td>规划与速度反馈</td><td>增加加减速、刹车及参考速度反馈。</td><td><span class="badge fail">FAIL</span><br><span class="small">6 项失败检查</span></td></tr><tr><td>4</td><td class="nowrap">11-20 14:33</td><td>第一次调整 J2</td><td>J2：Kp 120→360，Kd 18→36。</td><td><span class="badge fail">FAIL</span><br><span class="small">2 项失败检查</span></td></tr><tr><td>5</td><td class="nowrap">11-20 14:34</td><td>调整 J2/J3</td><td>J2：Ki 120→180；J3：Kp 60→120，Kd 8→12。</td><td><span class="badge fail">FAIL</span><br><span class="small">1 项失败检查</span></td></tr><tr><td>6</td><td class="nowrap">11-20 14:36</td><td>首次完整 PASS</td><td>J2：Kp 360→600，Kd 36→48。</td><td><span class="badge pass">PASS</span><br><span class="small">0 项失败检查</span></td></tr><tr><td>7</td><td class="nowrap">11-25 15:27</td><td>同版本重新评测</td><td>搬盘后恢复工具环境，以相同源码重跑 all。</td><td><span class="badge pass">PASS</span><br><span class="small">0 项失败检查</span></td></tr></table>
+<p class="small">时间为 result.json 保留的结果文件时间（北京时间），并用参数和源码版本核对。搬盘重置了旧文件夹创建时间，故未按文件夹创建时间排序。第 1 轮只测试 posture_hold，第 2 轮起才是完整 all，失败项数量不能跨这两种范围直接比较。</p>
+<h2>正式通过线（版本 2）</h2>
+<table><tr><th>场景</th><th>主要要求</th></tr>
+<tr><td>姿态保持</td><td>六轴最大位置误差 ≤0.5°；速度 RMS ≤1°/s。</td></tr>
+<tr><td>单轴阶跃</td><td>主动轴超调 ≤2°、调节时间 ≤1.5 s；保持轴最大偏差 ≤1°。</td></tr>
+<tr><td>连续跟随 / 恢复</td><td>跟踪 RMS ≤1°、最大误差 ≤2°；恢复调节时间 ≤0.5 s；保持轴偏差 ≤1°。</td></tr>
+<tr><td>目标切换</td><td>完整响应段超调 ≤2°、调节时间 ≤2 s；保持轴偏差 ≤1°。</td></tr>
+<tr><td>共同要求</td><td>适用响应/恢复段末 0.5 s：六轴误差 RMS ≤0.5°；正式工况全过程满足实际速度上限。</td></tr></table>
+<div class="callout"><b>如何理解“调节时间”</b><p>从阶段开始计时，找到位置误差绝对值 ≤1°、速度绝对值 ≤5°/s，并持续到阶段结束的时刻；末段至少持续 0.2 s。原始目标与实际位置用于评分，内部参考规划的延迟也计入误差。</p></div>
+<p class="small">短暂改目标段 brief_target、resume_motion 的适用项不同，具体以报告逐项检查为准。程序正常退出后仍需查看 evaluation.assessment.status。</p>
+</section><section class="page" id="p3"><div class="kicker">03 / 先解决“停稳但没到位”</div><h1>第一阶段：从 PD 到条件积分 PID</h1>
+<p>PD 初版在保持段已经几乎停止运动，但 J2 仍有约 2.181° 的误差。D 项随速度接近零而减小，P 项依靠这份固定偏差产生支撑负载的力矩。</p>
+<div class="formula">PD：τ = Kp × (qr − q) − Kd × v<br>加入积分：I ← I + Ki × (qr − q) × dt，τ = P + D + I</div>
+<figure><img src="figures/01_pd_hold_j2.png" alt="PD 初版 · J2 保持段位置误差"><figcaption>图 1｜PD 初版：J2 误差基本固定在 2.18°。红虚线 ±0.5° 为保持峰值误差上限；灰虚线 ±1° 为到达统计带。横轴为仿真时间。<span class="source">来源：control-demo-9bb524da / posture_hold / pose_1_hold / J2</span></figcaption></figure>
+<figure><img src="figures/02_pid_hold_j2.png" alt="加入积分后 · J2 保持段位置误差"><figcaption>图 2｜加入积分后，同一保持段 J2 最大误差约 0.073°。两图使用相同坐标范围，便于直接比较。<span class="source">来源：pid-all-ca37b09f / posture_hold / pose_1_hold / J2</span></figcaption></figure>
+<p><b>为什么积分有效：</b>即使位置误差逐渐减小，已经积累的积分力矩仍可继续支撑机械臂。J2、J3 启用积分，其余轴继续使用 PD。</p>
+<p><b>同时加入保护：</b>积分力矩单独限幅；总请求饱和且增量继续推动饱和时暂停本次积分；Reset 清零。内部参考运动期间保留旧积分，参考停止后再学习静态补偿。</p>
+</section><section class="page" id="p4"><div class="kicker">04 / 解决连续跟踪滞后</div><h1>第二阶段：让实际速度跟上参考</h1>
+<p>加入积分后，姿态保持通过，但连续运动仍有误差。原 D 项在正常运动时也产生阻尼，控制器需要额外位置误差来抵消它。</p>
+<div class="formula">原 D 项：−Kd × v<br>修改后：Kd × (vr − v)</div>
+<figure><img src="figures/03_pid_tracking_j1.png" alt="原 PID · J1 连续跟踪位置误差"><figcaption>图 3｜原 PID：J1 的跟踪 RMS 为 1.392°，超过 1°。阶段为 j1_tracking，横轴为 4–8 s。<span class="source">来源：pid-all-ca37b09f / joint_tracking / j1_tracking / J1</span></figcaption></figure>
+<figure><img src="figures/04_dynamic_tracking_j1.png" alt="改进规划与速度反馈后 · J1 跟踪误差"><figcaption>图 4｜加入规划与速度反馈后：相同阶段 RMS 约 0.334°，该工况通过。显示坐标与图 3 相同。<span class="source">来源：dynamic-pid-cd1ed4cb / joint_tracking / j1_tracking / J1</span></figcaption></figure>
+<p>参考速度非零时，速度项帮助实际速度跟上计划；参考速度为零时，它自然恢复为抑制剩余运动的阻尼。</p>
+<p class="small">这是该轮“规划 + 速度反馈”组合修改的实测效果，不能把全部改善唯一归因于某一个参数。红虚线 ±2° 是最大误差上限；RMS 需要按整段计算，不能只看某一点是否进入误差带。</p>
+</section><section class="page" id="p5"><div class="kicker">05 / 参考规划决定运动时间</div><h1>第三阶段：让大角度切换来得及完成</h1>
+<p>旧腕部参考速度仅 0.8 rad/s。J6 从 +120° 到 −120°，参考需移动约 4.189 rad，仅按原限速推进就要约 5.24 s，无法满足 2 s 的调节时间要求。</p>
+<div class="formula">刹车速度：vbrake = √(2a × |目标 − 参考位置|)<br>每周期逐步调整参考速度，再以 vr × dt 推进参考位置。</div>
+<figure><img src="figures/05_pid_switch_j6.png" alt="原 PID · J6 大幅反向位置跟随"><figcaption>图 5｜原 PID：coupled_reverse 阶段，J6 调节时间 5.455 s。红色竖线表示 2 s 的时间上限。<span class="source">来源：pid-all-ca37b09f / target_switch / coupled_reverse / J6</span></figcaption></figure>
+<figure><img src="figures/06_pass_switch_j6.png" alt="最终版本 · J6 大幅反向位置跟随"><figcaption>图 6｜最终版本：同一阶段 J6 调节时间 1.153 s，通过要求。灰虚线为目标位置，蓝线为实际位置。<span class="source">来源：pass-pid-a1381029 / target_switch / coupled_reverse / J6</span></figcaption></figure>
+<p><b>修改方法：</b>提高参考速度；离目标远时允许加速，接近目标时按停止距离减速。J6 最大参考速度改为 4 rad/s，并配合加减速处理。</p>
+<p class="small">内部规划限制不等于实际速度硬限制，仍需检查真实速度。末步会对齐目标并清零参考速度，这是简化的在线规划器，不是完整的最优轨迹规划器。</p>
+</section><section class="page" id="p6"><div class="kicker">06 / 最后解决 J2 阶跃与 J3 抗扰</div><h1>第四阶段：按失败项定向调参</h1>
+<p>规划和速度反馈改进后，只剩 joint_step 失败。于是定位到 j2_step_4，分别处理 J2 主动轴的超调、末段误差，以及 J3 保持轴被带偏的问题。</p>
+<table class="compact"><tr><th>版本</th><th>J2：Kp / Kd / Ki</th><th>J3：Kp / Kd</th><th>J2 末段 RMS</th><th>失败项</th></tr><tr><td>规划改进</td><td>120 / 18 / 120</td><td>60 / 8</td><td>1.320°</td><td>6</td></tr><tr><td>调整 J2</td><td>360 / 36 / 120</td><td>60 / 8</td><td>0.524°</td><td>2</td></tr><tr><td>调整 J2/J3</td><td>360 / 36 / 180</td><td>120 / 12</td><td>0.509°</td><td>1</td></tr><tr><td>最终固定</td><td>600 / 48 / 180</td><td>120 / 12</td><td>0.312°</td><td>0</td></tr></table>
+<figure><img src="figures/07_near_j2_tail.png" alt="临界失败版本 · J2 最后 0.5 s 位置误差"><figcaption>图 7｜临界失败：末段 RMS 为 0.509°，仍高于 0.5°。此处仅放大最后 0.5 s。<span class="source">来源：final-pid-40f83b10 / joint_step / j2_step_4 / J2</span></figcaption></figure>
+<figure><img src="figures/08_pass_j2_tail.png" alt="最终版本 · J2 最后 0.5 s 位置误差"><figcaption>图 8｜最终版本：同一区间 RMS 约 0.312°。增强 J2 刚度并配套增加阻尼后，取得明确余量。<span class="source">来源：pass-pid-a1381029 / joint_step / j2_step_4 / J2</span></figcaption></figure>
+<p class="small">背景阴影是末段 RMS 统计区。该指标检查整个区间的均方根误差，不能把单个采样点与 0.5° 比较来代替 RMS。目录名 final-pid 的版本实际上仍为 FAIL；判定以结果数据为准。</p>
+</section><section class="page" id="p7"><div class="kicker">07 / 完整 all 与同版本复测</div><h1>最终验证：精度、速度与力矩同时检查</h1>
+<p>最终版本在同一组代码和参数下完成四项正式工况。首次整体 PASS 后，11 月 25 日在 E 盘重新运行，整体与四项工况再次 PASS，框架契约检查记录为 2/2 通过。</p>
+<table class="compact"><tr><th>实际速度（°/s）</th><th>J1</th><th>J2</th><th>J3</th><th>J4</th><th>J5</th><th>J6</th></tr><tr><td>四项全程峰值</td><td>71.3</td><td>71.1</td><td>89.5</td><td>178.0</td><td>177.2</td><td>236.5</td></tr><tr><td>模型上限</td><td>216</td><td>240</td><td>216</td><td>720</td><td>720</td><td>900</td></tr></table>
+<figure><img src="figures/09_pass_j6_speed.png" alt="最新复测 · J6 实际速度与速度上限"><figcaption>图 9｜最新复测的 J6 实际速度。红虚线为模型速度上限；这里只展示 coupled_reverse 阶段，全程判定还包含初始化、恢复和最终端点。<span class="source">来源：rerun-20261125-12f1845a / target_switch / coupled_reverse / J6</span></figcaption></figure>
+<figure><img src="figures/10_pass_j2_torque.png" alt="最新复测 · J2 请求力矩与实际力矩"><figcaption>图 10｜最新复测的 J2 请求与实际力矩，红虚线为 ±80 N·m 模型范围。两条曲线接近重合，表示这一段请求基本由执行器实现。<span class="source">来源：rerun-20261125-12f1845a / joint_step / j2_step_4 / J2</span></figcaption></figure>
+<div class="callout"><b>通过的含义</b><p>result.json 中 evaluation.assessment.status 为 PASS；所有必需阶段数据完整，并满足版本 2 规则。单纯进程退出码为 0 不等于性能通过。</p></div>
+</section><section class="page" id="p8"><div class="kicker">08 / 留存可复核的实验记录</div><h1>最终代码、参数与复现方法</h1>
+<p><b>控制源码改动：</b><code>simulation/arm/arm.cpp</code> 与 <code>arm.hpp</code>。前者实现参考生成、P/D/I 计算和限幅；后者保存参考位置、参考速度与积分状态。模型、工况、公共输入输出类型和评分规则保持原样；另有说明文档及生成的实验文件。</p>
+<div class="formula">τ = clamp[ Kp(qr − q) + Kd(vr − v) + I ]</div>
+<table class="compact"><tr><th>参数</th><th>J1</th><th>J2</th><th>J3</th><th>J4</th><th>J5</th><th>J6</th></tr><tr><td>Kp</td><td>60</td><td>600</td><td>120</td><td>4</td><td>3</td><td>0.8</td></tr><tr><td>Kd</td><td>8</td><td>48</td><td>12</td><td>0.4</td><td>0.3</td><td>0.08</td></tr><tr><td>Ki</td><td>0</td><td>180</td><td>80</td><td>0</td><td>0</td><td>0</td></tr><tr><td>参考速度 rad/s</td><td>1.2</td><td>1.2</td><td>1.5</td><td>3</td><td>3</td><td>4</td></tr><tr><td>参考加速度 rad/s²</td><td>4</td><td>3</td><td>6</td><td>25</td><td>25</td><td>35</td></tr><tr><td>积分额度 N·m</td><td>0</td><td>16</td><td>8</td><td>0</td><td>0</td><td>0</td></tr><tr><td>电机力矩上限 N·m</td><td>20</td><td>80</td><td>20</td><td>10</td><td>10</td><td>2</td></tr></table>
+<p class="small">位置用 rad、速度用 rad/s、力矩用 N·m。I 只在参考停止变化时更新，并有单独限幅和抗饱和；Reset 清空三组内部状态。最终判定对应当前仓库模型、Release 与上述固定参数。</p>
+<h2>在仓库根目录复现</h2><pre>$env:Path = ($env:Path -split &#x27;;&#x27; |
+  Where-Object { $_ -notlike &#x27;*\WinGet\Packages\astral-sh.uv_*&#x27; }) -join &#x27;;&#x27;
+./tools/build.ps1 -Configuration Release
+./tools/benchmark.ps1 -Configuration Release `
+  -Case all -Headless -Test</pre>
+<p class="small">PATH 去重仅对当前终端生效，用于本机同时发现两份 uv 的情况。每次运行创建新目录；打开终端打印的新 report.html，旧报告刷新不会变成新实验。</p>
+<h2>原始报告目录索引</h2><ul class="source-index"><li><code>control-demo-9bb524da</code>：PD 初版</li><li><code>pid-all-ca37b09f</code>：加入条件积分</li><li><code>dynamic-pid-cd1ed4cb</code>：规划与速度反馈</li><li><code>tuned-pid-c561a04d</code>：第一次调整 J2</li><li><code>final-pid-40f83b10</code>：调整 J2/J3</li><li><code>pass-pid-a1381029</code>：首次完整 PASS</li><li><code>rerun-20261125-12f1845a</code>：同版本重新评测</li></ul>
+<p class="small">以上目录均位于 temp/benchmark/。最终报告目录保留 source/ 源码快照、controller-parameters.json；最新复测目录有 rerun-manifest.json。本 PDF 的配图来源清单见同目录 figure-manifest.json，原始数据保留在各工况 CSV。</p>
+</section></body></html>

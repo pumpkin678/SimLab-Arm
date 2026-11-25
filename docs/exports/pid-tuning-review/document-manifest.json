@@ -1,0 +1,24 @@
+{
+  "pdf": "机械臂PID调参过程复盘.pdf",
+  "pages_expected": 8,
+  "figure_count": 10,
+  "sources": [
+    "control-demo-9bb524da",
+    "pid-all-ca37b09f",
+    "dynamic-pid-cd1ed4cb",
+    "tuned-pid-c561a04d",
+    "final-pid-40f83b10",
+    "pass-pid-a1381029",
+    "rerun-20261125-12f1845a"
+  ],
+  "latest_assessment": "PASS",
+  "metrics": {
+    "old_tracking_rms_deg": 1.3922140703978974,
+    "new_tracking_rms_deg": 0.3341330786355072,
+    "old_switch_settling_s": 5.455000000003409,
+    "new_switch_settling_s": 1.153000000013435,
+    "old_j2_tail_rms_deg": 1.9302500938717295,
+    "new_j2_tail_rms_deg": 0.3118034081683192
+  },
+  "source_files_unchanged": true
+}

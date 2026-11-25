@@ -1,0 +1,212 @@
+[
+  {
+    "id": "01_pd_hold_j2",
+    "folder": "control-demo-9bb524da",
+    "case": "posture_hold",
+    "phase": "pose_1_hold",
+    "joint": 2,
+    "plot": "error",
+    "x": [
+      4,
+      6
+    ],
+    "y": [
+      -0.65,
+      2.55
+    ],
+    "title": "PD 初版 · J2 保持段位置误差",
+    "file": "figures/01_pd_hold_j2.png",
+    "source_report": "temp/benchmark/control-demo-9bb524da/report.html",
+    "source_report_sha256": "b45faca8daa0a8cb6b009e847094139e0d7dc02df0d4d2ecb10418c06d3c2cf1",
+    "method": "Original report Plotly.toImage export; only display size/font/axis range adjusted; traces and assessment unchanged."
+  },
+  {
+    "id": "02_pid_hold_j2",
+    "folder": "pid-all-ca37b09f",
+    "case": "posture_hold",
+    "phase": "pose_1_hold",
+    "joint": 2,
+    "plot": "error",
+    "x": [
+      4,
+      6
+    ],
+    "y": [
+      -0.65,
+      2.55
+    ],
+    "title": "加入积分后 · J2 保持段位置误差",
+    "file": "figures/02_pid_hold_j2.png",
+    "source_report": "temp/benchmark/pid-all-ca37b09f/report.html",
+    "source_report_sha256": "bcbff180dfb2435460230d463c473b840eb1765f7bfee2555eb4f2f7457ab6ca",
+    "method": "Original report Plotly.toImage export; only display size/font/axis range adjusted; traces and assessment unchanged."
+  },
+  {
+    "id": "03_pid_tracking_j1",
+    "folder": "pid-all-ca37b09f",
+    "case": "joint_tracking",
+    "phase": "j1_tracking",
+    "joint": 1,
+    "plot": "error",
+    "x": [
+      4,
+      8
+    ],
+    "y": [
+      -2.5,
+      2.5
+    ],
+    "title": "原 PID · J1 连续跟踪位置误差",
+    "file": "figures/03_pid_tracking_j1.png",
+    "source_report": "temp/benchmark/pid-all-ca37b09f/report.html",
+    "source_report_sha256": "bcbff180dfb2435460230d463c473b840eb1765f7bfee2555eb4f2f7457ab6ca",
+    "method": "Original report Plotly.toImage export; only display size/font/axis range adjusted; traces and assessment unchanged."
+  },
+  {
+    "id": "04_dynamic_tracking_j1",
+    "folder": "dynamic-pid-cd1ed4cb",
+    "case": "joint_tracking",
+    "phase": "j1_tracking",
+    "joint": 1,
+    "plot": "error",
+    "x": [
+      4,
+      8
+    ],
+    "y": [
+      -2.5,
+      2.5
+    ],
+    "title": "改进规划与速度反馈后 · J1 跟踪误差",
+    "file": "figures/04_dynamic_tracking_j1.png",
+    "source_report": "temp/benchmark/dynamic-pid-cd1ed4cb/report.html",
+    "source_report_sha256": "4d2088a4d67176b1fa49c739caa8faf26b6a4a629ea48006ad7ab09b1c4fb9f9",
+    "method": "Original report Plotly.toImage export; only display size/font/axis range adjusted; traces and assessment unchanged."
+  },
+  {
+    "id": "05_pid_switch_j6",
+    "folder": "pid-all-ca37b09f",
+    "case": "target_switch",
+    "phase": "coupled_reverse",
+    "joint": 6,
+    "plot": "position",
+    "x": [
+      32,
+      38
+    ],
+    "y": [
+      -145,
+      145
+    ],
+    "title": "原 PID · J6 大幅反向位置跟随",
+    "file": "figures/05_pid_switch_j6.png",
+    "source_report": "temp/benchmark/pid-all-ca37b09f/report.html",
+    "source_report_sha256": "bcbff180dfb2435460230d463c473b840eb1765f7bfee2555eb4f2f7457ab6ca",
+    "method": "Original report Plotly.toImage export; only display size/font/axis range adjusted; traces and assessment unchanged."
+  },
+  {
+    "id": "06_pass_switch_j6",
+    "folder": "pass-pid-a1381029",
+    "case": "target_switch",
+    "phase": "coupled_reverse",
+    "joint": 6,
+    "plot": "position",
+    "x": [
+      32,
+      38
+    ],
+    "y": [
+      -145,
+      145
+    ],
+    "title": "最终版本 · J6 大幅反向位置跟随",
+    "file": "figures/06_pass_switch_j6.png",
+    "source_report": "temp/benchmark/pass-pid-a1381029/report.html",
+    "source_report_sha256": "2038f9aa97b1f18c100b94ecfc4c8be834320ccc0ed8b0519ef0bf363be2a81c",
+    "method": "Original report Plotly.toImage export; only display size/font/axis range adjusted; traces and assessment unchanged."
+  },
+  {
+    "id": "07_near_j2_tail",
+    "folder": "final-pid-40f83b10",
+    "case": "joint_step",
+    "phase": "j2_step_4",
+    "joint": 2,
+    "plot": "error",
+    "x": [
+      21.5,
+      22
+    ],
+    "y": [
+      0,
+      0.85
+    ],
+    "title": "临界失败版本 · J2 最后 0.5 s 位置误差",
+    "file": "figures/07_near_j2_tail.png",
+    "source_report": "temp/benchmark/final-pid-40f83b10/report.html",
+    "source_report_sha256": "ea8c6e0ded99544bfdb9e4171e9eb19e0b3498753dc7fafbc3f2028c0ab613bc",
+    "method": "Original report Plotly.toImage export; only display size/font/axis range adjusted; traces and assessment unchanged."
+  },
+  {
+    "id": "08_pass_j2_tail",
+    "folder": "pass-pid-a1381029",
+    "case": "joint_step",
+    "phase": "j2_step_4",
+    "joint": 2,
+    "plot": "error",
+    "x": [
+      21.5,
+      22
+    ],
+    "y": [
+      0,
+      0.85
+    ],
+    "title": "最终版本 · J2 最后 0.5 s 位置误差",
+    "file": "figures/08_pass_j2_tail.png",
+    "source_report": "temp/benchmark/pass-pid-a1381029/report.html",
+    "source_report_sha256": "2038f9aa97b1f18c100b94ecfc4c8be834320ccc0ed8b0519ef0bf363be2a81c",
+    "method": "Original report Plotly.toImage export; only display size/font/axis range adjusted; traces and assessment unchanged."
+  },
+  {
+    "id": "09_pass_j6_speed",
+    "folder": "rerun-20261125-12f1845a",
+    "case": "target_switch",
+    "phase": "coupled_reverse",
+    "joint": 6,
+    "plot": "velocity",
+    "x": [
+      32,
+      38
+    ],
+    "y": [
+      -1000,
+      1000
+    ],
+    "title": "最新复测 · J6 实际速度与速度上限",
+    "file": "figures/09_pass_j6_speed.png",
+    "source_report": "temp/benchmark/rerun-20261125-12f1845a/report.html",
+    "source_report_sha256": "663339fc14273345208be0cf11edbab8e43c5e8a54510cca7c0c70a0a902f70c",
+    "method": "Original report Plotly.toImage export; only display size/font/axis range adjusted; traces and assessment unchanged."
+  },
+  {
+    "id": "10_pass_j2_torque",
+    "folder": "rerun-20261125-12f1845a",
+    "case": "joint_step",
+    "phase": "j2_step_4",
+    "joint": 2,
+    "plot": "torque",
+    "x": [
+      20,
+      22
+    ],
+    "y": [
+      -85,
+      85
+    ],
+    "title": "最新复测 · J2 请求力矩与实际力矩",
+    "file": "figures/10_pass_j2_torque.png",
+    "source_report": "temp/benchmark/rerun-20261125-12f1845a/report.html",
+    "source_report_sha256": "663339fc14273345208be0cf11edbab8e43c5e8a54510cca7c0c70a0a902f70c",
+    "method": "Original report Plotly.toImage export; only display size/font/axis range adjusted; traces and assessment unchanged."
+  }
+]
